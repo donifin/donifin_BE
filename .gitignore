@@ -67,3 +67,11 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Firebase Agent Skills
+.agents/
+.claude/
+skills-lock.json
+
+# 환경변수
+functions/.env
