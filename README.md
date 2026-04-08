@@ -12,9 +12,12 @@
 | 클라우드 함수 | Firebase Cloud Functions (Node.js 24) |
 | 인증 | Firebase Authentication |
 | DB | Supabase (PostgreSQL) |
-| AI | OpenAI API(미정) (gpt-4o-mini) |
+| AI | OpenAI API (gpt-4o-mini) |
 | 금융 데이터 | 금감원 finlife API |
-| 뉴스 | 네이버 뉴스 API(미정) |
+| 환율 | 한국수출입은행 API |
+| 주식 | Yahoo Finance API |
+| 금리 | 한국은행 ECOS API |
+| 뉴스 | 네이버 뉴스 API |
 
 ---
 
@@ -27,7 +30,7 @@ donifin_BE/
 ├── .gitignore
 └── functions/
     ├── index.js          # 모든 클라우드 함수 진입점
-    ├── mockData.js       # 금감원 API 키 없을 때 사용하는 테스트 데이터
+    ├── mockData.js       # API 키 없을 때 사용하는 테스트 데이터
     ├── package.json
     └── .env              # API 키 (절대 GitHub에 올리지 말 것!)
 ```
@@ -56,7 +59,8 @@ git clone https://github.com/donifin/donifin_BE.git
 cd donifin_BE
 
 # 각자 브랜치로 이동
-
+git checkout develop
+```
 
 ### 3. 패키지 설치
 
@@ -74,24 +78,26 @@ npm install
 ### 4. .env 파일 생성
 
 `functions/.env` 파일을 직접 만들고 아래 형식으로 작성  
-**(API 키는 카톡방에, 절대 GitHub에 올리지 말 것!)**
+**(API 키는 카톡방에 공유, 절대 GitHub에 올리지 말 것!)**
 
 ```
 OPENAI_API_KEY=받은_키_입력
 FSS_API_KEY=받은_키_입력
 NAVER_CLIENT_ID=받은_키_입력
 NAVER_CLIENT_SECRET=받은_키_입력
+KOREAEXIM_API_KEY=받은_키_입력
+ECOS_API_KEY=받은_키_입력
 SUPABASE_URL=받은_URL_입력
 SUPABASE_KEY=받은_키_입력
 ```
 
-> **금감원 API 키가 없는 경우**: `.env`에서 `FSS_API_KEY`를 비워두면 자동으로 테스트 데이터(`mockData.js`)로 동작합니다.
+> **API 키가 없는 경우**: 해당 키를 비워두면 자동으로 테스트 데이터(mock)로 동작합니다.  
+> Yahoo Finance(주식)는 별도 키 없이 동작합니다.
 
 ### 5. 로컬 에뮬레이터 실행
 
 ```bash
 # donifin_BE 루트 폴더에서 실행
-cd ..
 firebase emulators:start
 ```
 
@@ -147,12 +153,27 @@ GET /getProducts?type=deposit&term=12&sort=high
 
 ### 성향 테스트
 
-#### `POST /personalityTest` — 금융 성향 테스트
+#### `GET /getPersonalityQuestions` — 성향 테스트 질문 목록 조회
 
 ```json
-// 요청 body (10~15개 문항 답변)
+// 응답
 {
-  "answers": [1, 2, 1, 3, 2, 1, 2, 3, 1, 2]
+  "questions": [
+    {
+      "id": 1,
+      "question": "저축의 주된 목적은 무엇인가요?",
+      "options": ["비상금 마련", "단기 목표 달성", "목돈 마련", "노후 준비"]
+    }
+  ]
+}
+```
+
+#### `POST /personalityTest` — 성향 테스트 결과 분석
+
+```json
+// 요청 body (각 질문의 선택지 인덱스, 0부터 시작)
+{
+  "answers": [0, 1, 2, 0, 1, 0, 2, 1, 0, 1]
 }
 ```
 
@@ -160,26 +181,34 @@ GET /getProducts?type=deposit&term=12&sort=high
 // 응답
 {
   "type": "단기 안전형",
-  "description": "성향 설명",
-  "products": [ /* 추천 상품 목록 */ ]
+  "description": "성향 설명 (AI 생성)",
+  "products": [ /* 추천 상품 최대 3개 */ ],
+  "is_mock": false
 }
 ```
 
 성향 유형 4가지:
-- `단기 안전형` — 단기 정기예금 추천
-- `장기 안전형` — 장기 정기예금 추천
-- `소액 저축형` — 자유적금 추천
-- `목돈 마련형` — 고금리 적금 추천
+- `단기 안전형` — 6개월 이하 정기예금 추천
+- `장기 안전형` — 2년 이상 정기예금 추천
+- `소액 저축형` — 자유적립식 적금 추천
+- `목돈 마련형` — 1년 이상 고금리 적금 추천
 
 ---
 
-### 뉴스
+### 금융 뉴스
 
-#### `GET /getNews` — 금융 뉴스
+#### `GET /getNews` — 환율 / 주식 / 경제뉴스 / 금리
 
 | 파라미터 | 필수 | 설명 |
 |----------|------|------|
-| `category` | 선택 | `환율` / `주식` / `경제` / `금리` / 없으면 전체 |
+| `category` | 선택 | `환율` / `주식` / `경제뉴스` / `금리` / 없으면 전체 |
+
+```
+GET /getNews?category=환율
+GET /getNews           ← 전체 반환
+```
+
+주식 조회 대표 종목: 삼성전자, SK하이닉스, 카카오, NAVER, 현대차
 
 ---
 
@@ -229,29 +258,13 @@ GET /getPopularProducts?age_group=20대&occupation=직장인
 
 ---
 
-### 카드 소개
+### 카드 소개 (구현 예정)
 
-#### `GET /getCards` — 카드 목록 소개 (하드코딩 데이터)
+#### `GET /getCards` — 카드 목록 소개
 
 | 파라미터 | 필수 | 설명 |
 |----------|------|------|
 | `category` | 선택 | `신용` / `체크` / 없으면 전체 |
-
-```json
-// 응답
-{
-  "cards": [
-    {
-      "id": "card_001",
-      "name": "카드명",
-      "company": "카드사",
-      "category": "신용",
-      "benefits": ["혜택1", "혜택2"],
-      "annual_fee": 15000,
-      "image_url": ""
-    }
-  ]
-}
 
 ---
 
@@ -261,8 +274,7 @@ GET /getPopularProducts?age_group=20대&occupation=직장인
 
 ```dart
 // localhost 대신 PC의 로컬 IP 주소 사용
-// 예: 192.168.0.10
-const baseUrl = 'http://192.168.0.10:5001/donifin/us-central1';
+const baseUrl = 'http://192.168.X.X:5001/donifin/us-central1';
 ```
 
 > PC의 로컬 IP 확인: Windows에서 `ipconfig` 실행 → IPv4 주소 확인
@@ -297,9 +309,3 @@ const baseUrl = 'http://192.168.0.10:5001/donifin/us-central1';
 | `age_group` | text | 조회 시점 나이대 |
 | `occupation` | text | 조회 시점 직업 |
 | `viewed_at` | timestamptz | 조회 일시 |
-
-> **Supabase 테이블 변경 시**: SQL Editor에서 아래 실행
-> ```sql
-> ALTER TABLE profiles ADD COLUMN occupation text;
-> ALTER TABLE product_views ADD COLUMN occupation text;
-> ```
