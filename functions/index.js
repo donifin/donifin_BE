@@ -32,10 +32,96 @@ function setCorsHeaders(res) {
 }
 
 // ── TODO: 아래에 각 Cloud Function 구현 예정 ──────────────────
-// getProducts        - 금융 상품 검색 + 필터링 + 금리 정렬
 // chatBot            - AI 금융 챗봇
 // personalityTest    - 금융 성향 테스트
 // getNews            - 금융 뉴스
+
+// ══════════════════════════════════════════════════════════════
+// 금융 상품 검색 (금감원 API or Mock)
+// ══════════════════════════════════════════════════════════════
+
+// 금감원 API에서 상품 데이터 가져오기
+async function fetchFssProducts(type) {
+  const endpoint = type === "deposit"
+    ? "http://finlife.fss.or.kr/finlifeapi/depositProductsSearch.json"
+    : "http://finlife.fss.or.kr/finlifeapi/savingProductsSearch.json";
+
+  const res = await axios.get(endpoint, {
+    params: { auth: FSS_API_KEY, topFinGrpNo: "020000", pageNo: 1 },
+  });
+
+  const result = res.data.result;
+  const baseList = result.baseList;
+  const optionList = result.optionList;
+
+  // 상품 코드 기준으로 옵션 묶기
+  return baseList.map((product) => ({
+    ...product,
+    options: optionList.filter((o) => o.fin_prdt_cd === product.fin_prdt_cd),
+  }));
+}
+
+// 금융 상품 검색 + 필터링 + 금리 정렬
+// GET /getProducts?type=deposit&term=12&sort=high
+// - type   : "deposit"(예금) | "saving"(적금) | 없으면 둘 다
+// - term   : 6 | 12 | 24 | 36 (개월, 없으면 전체)
+// - sort   : "high"(금리 높은 순, 기본) | "low"(금리 낮은 순)
+exports.getProducts = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+
+  try {
+    const { type, term, sort = "high" } = req.query;
+
+    let depositProducts = [];
+    let savingProducts = [];
+
+    if (USE_MOCK) {
+      // 금감원 API 키 없을 때 mock 데이터 사용
+      if (!type || type === "deposit") depositProducts = MOCK_DEPOSIT_PRODUCTS;
+      if (!type || type === "saving") savingProducts = MOCK_SAVING_PRODUCTS;
+    } else {
+      // 실제 금감원 API 호출
+      if (!type || type === "deposit") depositProducts = await fetchFssProducts("deposit");
+      if (!type || type === "saving") savingProducts = await fetchFssProducts("saving");
+    }
+
+    const allProducts = [
+      ...depositProducts.map((p) => ({ ...p, product_type: "deposit" })),
+      ...savingProducts.map((p) => ({ ...p, product_type: "saving" })),
+    ];
+
+    // 기간 필터링 + 해당 기간 옵션만 추출
+    const filtered = allProducts
+      .map((product) => {
+        const matchedOptions = term
+          ? product.options.filter((o) => String(o.save_trm) === String(term))
+          : product.options;
+
+        if (matchedOptions.length === 0) return null;
+
+        // 옵션 중 최고 우대금리
+        const maxRate = Math.max(...matchedOptions.map((o) => o.intr_rate2 ?? o.intr_rate));
+
+        return { ...product, options: matchedOptions, max_rate: maxRate };
+      })
+      .filter(Boolean);
+
+    // 금리 정렬
+    filtered.sort((a, b) =>
+      sort === "low" ? a.max_rate - b.max_rate : b.max_rate - a.max_rate
+    );
+
+    return res.status(200).json({
+      products: filtered,
+      count: filtered.length,
+      is_mock: USE_MOCK,
+    });
+  } catch (err) {
+    logger.error("getProducts error:", err);
+    return res.status(500).json({ error: "상품 조회 실패" });
+  }
+});
 
 // ══════════════════════════════════════════════════════════════
 // 커뮤니티 함수 (Supabase)
