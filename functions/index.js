@@ -313,26 +313,26 @@ exports.createComment = onRequest(async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// 나이대별 인기 상품 함수 (Supabase)
+// 나이대·직업별 인기 상품 함수 (Supabase)
 // ══════════════════════════════════════════════════════════════
 
 // 상품 조회 기록 저장
 // POST /recordProductView
-// body: { user_id, product_code, age_group }
+// body: { user_id, product_code, age_group, occupation }
 exports.recordProductView = onRequest(async (req, res) => {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
   if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
 
   try {
-    const { user_id, product_code, age_group } = req.body;
+    const { user_id, product_code, age_group, occupation } = req.body;
     if (!user_id || !product_code || !age_group) {
       return res.status(400).json({ error: "user_id, product_code, age_group 필수" });
     }
 
     const { error } = await supabase
       .from("product_views")
-      .insert({ user_id, product_code, age_group });
+      .insert({ user_id, product_code, age_group, occupation: occupation || null });
 
     if (error) throw error;
 
@@ -343,21 +343,24 @@ exports.recordProductView = onRequest(async (req, res) => {
   }
 });
 
-// 나이대별 인기 상품 TOP 5 조회
-// GET /getPopularProducts?age_group=20대
+// 나이대·직업별 인기 상품 TOP 5 조회
+// GET /getPopularProducts?age_group=20대&occupation=직장인
+// - age_group, occupation 둘 다 선택, 하나만 써도 됨
 exports.getPopularProducts = onRequest(async (req, res) => {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
 
   try {
-    const { age_group } = req.query;
-    if (!age_group) return res.status(400).json({ error: "age_group 필수" });
+    const { age_group, occupation } = req.query;
+    if (!age_group && !occupation) {
+      return res.status(400).json({ error: "age_group 또는 occupation 중 하나 이상 필수" });
+    }
 
-    const { data, error } = await supabase
-      .from("product_views")
-      .select("product_code")
-      .eq("age_group", age_group);
+    let query = supabase.from("product_views").select("product_code");
+    if (age_group) query = query.eq("age_group", age_group);
+    if (occupation) query = query.eq("occupation", occupation);
 
+    const { data, error } = await query;
     if (error) throw error;
 
     // 상품 코드별 조회 수 집계
@@ -372,7 +375,7 @@ exports.getPopularProducts = onRequest(async (req, res) => {
       .slice(0, 5)
       .map(([product_code, view_count]) => ({ product_code, view_count }));
 
-    return res.status(200).json({ age_group, products: top5 });
+    return res.status(200).json({ age_group, occupation, products: top5 });
   } catch (err) {
     logger.error("getPopularProducts error:", err);
     return res.status(500).json({ error: "인기 상품 조회 실패" });
