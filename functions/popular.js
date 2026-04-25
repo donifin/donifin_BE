@@ -1,0 +1,68 @@
+const { onRequest } = require("firebase-functions/https");
+const logger = require("firebase-functions/logger");
+const { supabase, setCorsHeaders } = require("./config");
+
+// 상품 조회 기록 저장
+// POST /recordProductView
+// body: { user_id, product_code, age_group, occupation }
+exports.recordProductView = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
+
+  try {
+    const { user_id, product_code, age_group, occupation } = req.body;
+    if (!user_id || !product_code || !age_group) {
+      return res.status(400).json({ error: "user_id, product_code, age_group 필수" });
+    }
+
+    const { error } = await supabase
+      .from("product_views")
+      .insert({ user_id, product_code, age_group, occupation: occupation || null });
+
+    if (error) throw error;
+
+    return res.status(201).json({ success: true });
+  } catch (err) {
+    logger.error("recordProductView error:", err);
+    return res.status(500).json({ error: "조회 기록 저장 실패" });
+  }
+});
+
+// 나이대·직업별 인기 상품 TOP 5 조회
+// GET /getPopularProducts?age_group=20대&occupation=직장인
+exports.getPopularProducts = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+
+  try {
+    const { age_group, occupation } = req.query;
+    if (!age_group && !occupation) {
+      return res.status(400).json({ error: "age_group 또는 occupation 중 하나 이상 필수" });
+    }
+
+    let query = supabase.from("product_views").select("product_code");
+    if (age_group) query = query.eq("age_group", age_group);
+    if (occupation) query = query.eq("occupation", occupation);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // 상품 코드별 조회 수 집계
+    const countMap = {};
+    for (const row of data) {
+      countMap[row.product_code] = (countMap[row.product_code] || 0) + 1;
+    }
+
+    // 조회 수 내림차순 정렬 후 TOP 5
+    const top5 = Object.entries(countMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([product_code, view_count]) => ({ product_code, view_count }));
+
+    return res.status(200).json({ age_group, occupation, products: top5 });
+  } catch (err) {
+    logger.error("getPopularProducts error:", err);
+    return res.status(500).json({ error: "인기 상품 조회 실패" });
+  }
+});
