@@ -9,13 +9,13 @@ const {
 } = require("./config");
 
 // 한국은행 ECOS API 공통 호출 함수
-// statCode: 통계표 코드, itemCode: 통계 항목 코드 (선택)
-async function fetchEcos(statCode, itemCode = "", days = 30) {
+// statCode: 통계표 코드, itemCode: 통계 항목 코드 (필수), days: 조회 기간(일)
+async function fetchEcos(statCode, itemCode, days = 30) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
     .toISOString().slice(0, 10).replace(/-/g, "");
 
-  const url = `https://ecos.bok.or.kr/api/StatisticSearch/${ECOS_API_KEY}/json/kr/1/100/${statCode}/DD/${fromDate}/${today}${itemCode ? "/" + itemCode : ""}`;
+  const url = `https://ecos.bok.or.kr/api/StatisticSearch/${ECOS_API_KEY}/json/kr/1/100/${statCode}/D/${fromDate}/${today}/${itemCode}`;
   const res = await axios.get(url);
 
   if (!res.data.StatisticSearch) return [];
@@ -50,25 +50,24 @@ async function fetchExchangeRate() {
     ];
   }
 
-  const rows = await fetchEcos("731Y001", "", 14);
+  // 통화별로 각각 호출 (ECOS는 항목코드가 필수)
   const itemCodes = Object.keys(EXCHANGE_ITEM_MAP);
+  const results = await Promise.allSettled(
+    itemCodes.map(async (code) => {
+      const rows = await fetchEcos("731Y001", code, 14);
+      if (rows.length === 0) return null;
+      const latest = rows[rows.length - 1]; // 가장 최근
+      return {
+        ...EXCHANGE_ITEM_MAP[code],
+        deal_bas_r: parseFloat(latest.DATA_VALUE).toFixed(2),
+        date: latest.TIME,
+      };
+    })
+  );
 
-  // 통화별 가장 최근 데이터만 추출
-  const latestByCurrency = {};
-  for (const row of rows) {
-    if (!itemCodes.includes(row.ITEM_CODE1)) continue;
-    if (!latestByCurrency[row.ITEM_CODE1] || row.TIME > latestByCurrency[row.ITEM_CODE1].TIME) {
-      latestByCurrency[row.ITEM_CODE1] = row;
-    }
-  }
-
-  return itemCodes
-    .filter((code) => latestByCurrency[code])
-    .map((code) => ({
-      ...EXCHANGE_ITEM_MAP[code],
-      deal_bas_r: parseFloat(latestByCurrency[code].DATA_VALUE).toFixed(2),
-      date: latestByCurrency[code].TIME,
-    }));
+  return results
+    .filter((r) => r.status === "fulfilled" && r.value)
+    .map((r) => r.value);
 }
 
 // 주식 차트 조회 (Yahoo Finance 비공식 API, 키 불필요)
