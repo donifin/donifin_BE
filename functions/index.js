@@ -15,6 +15,7 @@ const { getCommunityPosts,
         createComment }           = require("./community");
 const { recordProductView,
         getPopularProducts }      = require("./popular");
+const { saveProfile }             = require("./profile");
 
 // ── 내보내기 ─────────────────────────────────────────────────
 module.exports = {
@@ -29,4 +30,5 @@ module.exports = {
   createComment,
   recordProductView,
   getPopularProducts,
+  saveProfile,
 };
