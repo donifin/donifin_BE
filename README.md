@@ -14,9 +14,8 @@
 | DB | Supabase (PostgreSQL) |
 | AI | OpenAI API (gpt-4o-mini) |
 | 금융 데이터 | 금감원 finlife API |
-| 환율 | 한국수출입은행 API |
+| 환율·금리 | 한국은행 ECOS API |
 | 주식 | Yahoo Finance API |
-| 금리 | 한국은행 ECOS API |
 | 뉴스 | 네이버 뉴스 API |
 
 ---
@@ -85,7 +84,6 @@ OPENAI_API_KEY=받은_키_입력
 FSS_API_KEY=받은_키_입력
 NAVER_CLIENT_ID=받은_키_입력
 NAVER_CLIENT_SECRET=받은_키_입력
-KOREAEXIM_API_KEY=받은_키_입력
 ECOS_API_KEY=받은_키_입력
 SUPABASE_URL=받은_URL_입력
 SUPABASE_KEY=받은_키_입력
