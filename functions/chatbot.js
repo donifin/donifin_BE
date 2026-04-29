@@ -2,6 +2,7 @@ const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const {
   openai,
+  supabase,
   USE_MOCK,
   MOCK_DEPOSIT_PRODUCTS,
   MOCK_SAVING_PRODUCTS,
@@ -31,8 +32,19 @@ exports.chatBot = onRequest(async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
 
   try {
-    const { message, history = [] } = req.body;
+    const { user_id, message, history = [] } = req.body;
     if (!message) return res.status(400).json({ error: "message 필수" });
+
+    // 사용자 프로필 조회 (선택적 - user_id 있을 때만)
+    let userProfile = null;
+    if (user_id) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("age_group, occupation")
+        .eq("id", user_id)
+        .single();
+      userProfile = data;
+    }
 
     let deposits, savings;
     if (USE_MOCK) {
@@ -47,9 +59,13 @@ exports.chatBot = onRequest(async (req, res) => {
 
     const productContext = formatProductsForPrompt(deposits, savings);
 
+    const profileContext = userProfile
+      ? `\n[사용자 정보]\n- 나이대: ${userProfile.age_group || "미입력"}\n- 직업: ${userProfile.occupation || "미입력"}\n위 사용자 정보를 고려해서 맞춤형으로 답변해줘.`
+      : "";
+
     const systemPrompt = `너는 친절한 금융 전문가 챗봇이야.
 반드시 아래 금감원 실제 상품 데이터 안에서만 상품을 추천해야 해. 데이터에 없는 상품은 절대 만들어내지 마.
-금융 용어 설명은 쉽고 간결하게 해줘. 답변은 한국어로 해줘.
+금융 용어 설명은 쉽고 간결하게 해줘. 답변은 한국어로 해줘.${profileContext}
 
 [현재 금융 상품 데이터]
 ${productContext}`;
