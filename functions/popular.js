@@ -1,6 +1,13 @@
 const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
-const { supabase, setCorsHeaders } = require("./config");
+const {
+  supabase,
+  setCorsHeaders,
+  USE_MOCK,
+  MOCK_DEPOSIT_PRODUCTS,
+  MOCK_SAVING_PRODUCTS,
+  fetchFssProducts,
+} = require("./config");
 
 // 상품 조회 기록 저장
 // POST /recordProductView
@@ -57,10 +64,41 @@ exports.getPopularProducts = onRequest(async (req, res) => {
     // 조회 수 내림차순 정렬 후 TOP 5
     const top5 = Object.entries(countMap)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([product_code, view_count]) => ({ product_code, view_count }));
+      .slice(0, 5);
 
-    return res.status(200).json({ age_group, occupation, products: top5 });
+    // 상품 상세 정보(은행명, 상품명, 최고 금리) 매핑
+    let allProducts = [];
+    if (USE_MOCK) {
+      allProducts = [...MOCK_DEPOSIT_PRODUCTS, ...MOCK_SAVING_PRODUCTS];
+    } else {
+      const [deposits, savings] = await Promise.all([
+        fetchFssProducts("deposit"),
+        fetchFssProducts("saving"),
+      ]);
+      allProducts = [...deposits, ...savings];
+    }
+
+    const productMap = {};
+    for (const p of allProducts) {
+      const maxRate = p.options && p.options.length > 0
+        ? Math.max(...p.options.map((o) => o.intr_rate2 ?? o.intr_rate))
+        : null;
+      productMap[p.fin_prdt_cd] = {
+        kor_co_nm: p.kor_co_nm,
+        fin_prdt_nm: p.fin_prdt_nm,
+        max_rate: maxRate,
+      };
+    }
+
+    const products = top5.map(([product_code, view_count]) => ({
+      product_code,
+      view_count,
+      kor_co_nm: productMap[product_code]?.kor_co_nm || null,
+      fin_prdt_nm: productMap[product_code]?.fin_prdt_nm || null,
+      max_rate: productMap[product_code]?.max_rate || null,
+    }));
+
+    return res.status(200).json({ age_group, occupation, products });
   } catch (err) {
     logger.error("getPopularProducts error:", err);
     return res.status(500).json({ error: "인기 상품 조회 실패" });
