@@ -134,6 +134,7 @@ GET /getProducts?type=deposit&term=12&sort=high
 ```json
 // 요청 body
 {
+  "user_id": "유저ID (선택 - 있으면 프로필 기반 맞춤 답변)",
   "message": "적금이랑 예금 차이가 뭐야?",
   "history": [
     { "role": "user", "content": "이전 질문" },
@@ -253,6 +254,24 @@ GET /getPopularProducts?age_group=20대&occupation=직장인
 ```json
 { "user_id": "유저ID", "product_code": "상품코드", "age_group": "20대", "occupation": "직장인" }
 ```
+
+---
+
+### 프로필
+
+#### `POST /saveProfile` — 유저 프로필 저장
+
+```json
+// 요청 body
+{ "user_id": "유저ID", "age_group": "20대", "occupation": "학생" }
+```
+
+```json
+// 응답
+{ "success": true }
+```
+
+> Google 로그인 후 나이대/직업 입력 시 호출
 
 ---
 
