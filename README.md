@@ -249,10 +249,34 @@ GET /getNews           ← 전체 반환
 GET /getPopularProducts?age_group=20대&occupation=직장인
 ```
 
+```json
+// 응답
+{
+  "age_group": "20대",
+  "occupation": "직장인",
+  "products": [
+    {
+      "product_code": "WR0003B",
+      "view_count": 15,
+      "kor_co_nm": "하나은행",
+      "fin_prdt_nm": "하나 정기예금",
+      "max_rate": 4.2
+    }
+    // ... 최대 5개, 조회수 내림차순
+  ]
+}
+```
+
 #### `POST /recordProductView` — 상품 조회 기록 저장
 
 ```json
-{ "user_id": "유저ID", "product_code": "상품코드", "age_group": "20대", "occupation": "직장인" }
+// 요청 body (나이대/직업은 백엔드가 profiles에서 자동으로 가져옴)
+{ "user_id": "유저ID", "product_code": "상품코드" }
+```
+
+```json
+// 응답
+{ "success": true }
 ```
 
 ---

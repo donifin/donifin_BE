@@ -11,21 +11,37 @@ const {
 
 // 상품 조회 기록 저장
 // POST /recordProductView
-// body: { user_id, product_code, age_group, occupation }
+// body: { user_id, product_code }
 exports.recordProductView = onRequest(async (req, res) => {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
   if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
 
   try {
-    const { user_id, product_code, age_group, occupation } = req.body;
-    if (!user_id || !product_code || !age_group) {
-      return res.status(400).json({ error: "user_id, product_code, age_group 필수" });
+    const { user_id, product_code } = req.body;
+    if (!user_id || !product_code) {
+      return res.status(400).json({ error: "user_id, product_code 필수" });
+    }
+
+    // profiles 테이블에서 나이대, 직업 자동으로 가져오기
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("age_group, occupation")
+      .eq("id", user_id)
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({ error: "프로필을 찾을 수 없습니다. saveProfile을 먼저 호출해주세요." });
     }
 
     const { error } = await supabase
       .from("product_views")
-      .insert({ user_id, product_code, age_group, occupation: occupation || null });
+      .insert({
+        user_id,
+        product_code,
+        age_group: profile.age_group,
+        occupation: profile.occupation || null,
+      });
 
     if (error) throw error;
 
