@@ -236,23 +236,23 @@ GET /getNews           ← 전체 반환
 
 ---
 
-### 나이대·직업별 인기 상품
+### 나이·직업별 인기 상품
 
 #### `GET /getPopularProducts` — 인기 상품 TOP 5
 
 | 파라미터 | 필수 | 설명 |
 |----------|------|------|
-| `age_group` | 선택 | `20대` / `30대` 등 |
+| `age` | 선택 | 숫자 (예: `25`) |
 | `occupation` | 선택 | `직장인` / `학생` / `자영업자` 등 |
 
 ```
-GET /getPopularProducts?age_group=20대&occupation=직장인
+GET /getPopularProducts?age=25&occupation=직장인
 ```
 
 ```json
 // 응답
 {
-  "age_group": "20대",
+  "age": "25",
   "occupation": "직장인",
   "products": [
     {
@@ -270,7 +270,7 @@ GET /getPopularProducts?age_group=20대&occupation=직장인
 #### `POST /recordProductView` — 상품 조회 기록 저장
 
 ```json
-// 요청 body (나이대/직업은 백엔드가 profiles에서 자동으로 가져옴)
+// 요청 body (나이/직업은 백엔드가 profiles에서 자동으로 가져옴)
 { "user_id": "유저ID", "product_code": "상품코드" }
 ```
 
@@ -287,15 +287,35 @@ GET /getPopularProducts?age_group=20대&occupation=직장인
 
 ```json
 // 요청 body
-{ "user_id": "유저ID", "age_group": "20대", "occupation": "학생" }
+{
+  "user_id": "Firebase UID",
+  "name": "홍길동",
+  "email": "hong@gmail.com",
+  "age": 25,
+  "occupation": "직장인",
+  "interests": "주식, 게임, 여행",
+  "main_bank": "국민은행"
+}
 ```
 
 ```json
 // 응답
-{ "success": true }
+{
+  "success": true,
+  "profile": {
+    "id": "Firebase UID",
+    "name": "홍길동",
+    "email": "hong@gmail.com",
+    "age": 25,
+    "occupation": "직장인",
+    "interests": "주식, 게임, 여행",
+    "main_bank": "국민은행",
+    "created_at": "2026-05-06T00:00:00.000Z"
+  }
+}
 ```
 
-> Google 로그인 후 나이대/직업 입력 시 호출
+> 회원가입 시 사용자 정보 입력 후 호출. 이미 있으면 업데이트.
 
 ---
 
@@ -326,18 +346,22 @@ const baseUrl = 'http://192.168.X.X:5001/donifin/us-central1';
 
 | 테이블 | 설명 |
 |--------|------|
-| `profiles` | 사용자 나이대 + 직업 저장 |
+| `profiles` | 사용자 정보 저장 |
 | `posts` | 커뮤니티 게시글 |
 | `comments` | 게시글 댓글 |
-| `product_views` | 나이대·직업별 인기 상품 집계용 조회 기록 |
+| `product_views` | 나이·직업별 인기 상품 집계용 조회 기록 |
 
 ### profiles
 
 | 컬럼 | 타입 | 설명 |
 |------|------|------|
 | `id` | uuid PK | Firebase Auth UID |
-| `age_group` | text | `20대`, `30대` 등 |
+| `name` | text | 이름 |
+| `email` | text | 이메일 |
+| `age` | integer | 나이 |
 | `occupation` | text | `직장인`, `학생`, `자영업자` 등 |
+| `interests` | text | 관심분야 (자유 문자열) |
+| `main_bank` | text | 자주 쓰는 은행 |
 | `created_at` | timestamptz | 가입일 |
 
 ### product_views
@@ -347,6 +371,6 @@ const baseUrl = 'http://192.168.X.X:5001/donifin/us-central1';
 | `id` | uuid PK | |
 | `user_id` | uuid | profiles.id 참조 |
 | `product_code` | text | 금감원 상품 코드 |
-| `age_group` | text | 조회 시점 나이대 |
+| `age` | integer | 조회 시점 나이 |
 | `occupation` | text | 조회 시점 직업 |
 | `viewed_at` | timestamptz | 조회 일시 |
