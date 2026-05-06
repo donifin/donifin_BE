@@ -40,7 +40,7 @@ exports.chatBot = onRequest(async (req, res) => {
     if (user_id) {
       const { data } = await supabase
         .from("profiles")
-        .select("name, age, occupation, interests, main_bank")
+        .select("age_group, occupation")
         .eq("id", user_id)
         .single();
       userProfile = data;
@@ -60,7 +60,7 @@ exports.chatBot = onRequest(async (req, res) => {
     const productContext = formatProductsForPrompt(deposits, savings);
 
     const profileContext = userProfile
-      ? `\n[사용자 정보]\n- 이름: ${userProfile.name || "미입력"}\n- 나이: ${userProfile.age || "미입력"}\n- 직업: ${userProfile.occupation || "미입력"}\n- 관심분야: ${userProfile.interests || "미입력"}\n- 주거래 은행: ${userProfile.main_bank || "미입력"}\n위 사용자 정보를 고려해서 맞춤형으로 답변해줘.`
+      ? `\n[사용자 정보]\n- 나이대: ${userProfile.age_group || "미입력"}\n- 직업: ${userProfile.occupation || "미입력"}\n위 사용자 정보를 고려해서 맞춤형으로 답변해줘.`
       : "";
 
     const systemPrompt = `너는 친절한 금융 전문가 챗봇이야.
