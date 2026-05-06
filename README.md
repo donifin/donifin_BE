@@ -242,11 +242,11 @@ GET /getNews           ← 전체 반환
 
 | 파라미터 | 필수 | 설명 |
 |----------|------|------|
-| `age_group` | 선택 | `20대` / `30대` 등 |
+| `age` | 선택 | 숫자 (예: `25`) |
 | `occupation` | 선택 | `직장인` / `학생` / `자영업자` 등 |
 
 ```
-GET /getPopularProducts?age_group=20대&occupation=직장인
+GET /getPopularProducts?age=25&occupation=직장인
 ```
 
 ```json
@@ -287,15 +287,35 @@ GET /getPopularProducts?age_group=20대&occupation=직장인
 
 ```json
 // 요청 body
-{ "user_id": "유저ID", "age_group": "20대", "occupation": "학생" }
+{
+  "user_id": "Firebase UID",
+  "name": "홍길동",
+  "email": "hong@gmail.com",
+  "age": 25,
+  "occupation": "직장인",
+  "interests": "주식, 게임, 여행",
+  "main_bank": "국민은행"
+}
 ```
 
 ```json
 // 응답
-{ "success": true }
+{
+  "success": true,
+  "profile": {
+    "id": "Firebase UID",
+    "name": "홍길동",
+    "email": "hong@gmail.com",
+    "age": 25,
+    "occupation": "직장인",
+    "interests": "주식, 게임, 여행",
+    "main_bank": "국민은행",
+    "created_at": "2026-05-06T00:00:00.000Z"
+  }
+}
 ```
 
-> Google 로그인 후 나이대/직업 입력 시 호출
+> 회원가입 시 사용자 정보 입력 후 호출. 이미 있으면 업데이트.
 
 ---
 

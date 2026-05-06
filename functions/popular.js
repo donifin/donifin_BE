@@ -23,10 +23,10 @@ exports.recordProductView = onRequest(async (req, res) => {
       return res.status(400).json({ error: "user_id, product_code 필수" });
     }
 
-    // profiles 테이블에서 나이대, 직업 자동으로 가져오기
+    // profiles 테이블에서 나이, 직업 자동으로 가져오기
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("age_group, occupation")
+      .select("age, occupation")
       .eq("id", user_id)
       .single();
 
@@ -39,7 +39,7 @@ exports.recordProductView = onRequest(async (req, res) => {
       .insert({
         user_id,
         product_code,
-        age_group: profile.age_group,
+        age: profile.age || null,
         occupation: profile.occupation || null,
       });
 
@@ -52,20 +52,20 @@ exports.recordProductView = onRequest(async (req, res) => {
   }
 });
 
-// 나이대·직업별 인기 상품 TOP 5 조회
-// GET /getPopularProducts?age_group=20대&occupation=직장인
+// 나이·직업별 인기 상품 TOP 5 조회
+// GET /getPopularProducts?age=25&occupation=직장인
 exports.getPopularProducts = onRequest(async (req, res) => {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
 
   try {
-    const { age_group, occupation } = req.query;
-    if (!age_group && !occupation) {
-      return res.status(400).json({ error: "age_group 또는 occupation 중 하나 이상 필수" });
+    const { age, occupation } = req.query;
+    if (!age && !occupation) {
+      return res.status(400).json({ error: "age 또는 occupation 중 하나 이상 필수" });
     }
 
     let query = supabase.from("product_views").select("product_code");
-    if (age_group) query = query.eq("age_group", age_group);
+    if (age) query = query.eq("age", parseInt(age));
     if (occupation) query = query.eq("occupation", occupation);
 
     const { data, error } = await query;
@@ -114,7 +114,7 @@ exports.getPopularProducts = onRequest(async (req, res) => {
       max_rate: productMap[product_code]?.max_rate || null,
     }));
 
-    return res.status(200).json({ age_group, occupation, products });
+    return res.status(200).json({ age, occupation, products });
   } catch (err) {
     logger.error("getPopularProducts error:", err);
     return res.status(500).json({ error: "인기 상품 조회 실패" });
