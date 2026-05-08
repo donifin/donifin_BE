@@ -9,69 +9,30 @@ const {
   fetchFssProducts,
 } = require("./config");
 
-// 성향 테스트 질문 목록
+// 성향 테스트 질문 목록 (1~5점 척도: 전혀 그렇지 않다 ~ 매우 그렇다)
 const PERSONALITY_QUESTIONS = [
-  {
-    id: 1,
-    question: "저축의 주된 목적은 무엇인가요?",
-    options: ["비상금 마련", "단기 목표 달성 (여행, 구매 등)", "목돈 마련", "노후 준비"],
-  },
-  {
-    id: 2,
-    question: "선호하는 저축 기간은 얼마인가요?",
-    options: ["6개월 이하", "1년", "2년", "3년 이상"],
-  },
-  {
-    id: 3,
-    question: "월 저축 가능 금액은 얼마인가요?",
-    options: ["10만원 이하", "10만원~30만원", "30만원~50만원", "50만원 이상"],
-  },
-  {
-    id: 4,
-    question: "원금 손실에 대해 어떻게 생각하시나요?",
-    options: ["절대 안 됨, 원금은 무조건 보장돼야 함", "최대한 피하고 싶음", "어느 정도 감수할 수 있음"],
-  },
-  {
-    id: 5,
-    question: "저축 방식은 어떤 걸 선호하나요?",
-    options: ["매달 정해진 금액을 납입하고 싶음", "상황에 따라 자유롭게 넣고 싶음"],
-  },
-  {
-    id: 6,
-    question: "지금 비상금(생활비 3개월치)이 충분히 있나요?",
-    options: ["충분히 있음", "어느 정도 있음", "거의 없음"],
-  },
-  {
-    id: 7,
-    question: "저축으로 달성하고 싶은 목표 금액이 있나요?",
-    options: ["1000만원 이상의 큰 금액", "500만원 이하의 소액", "딱히 목표 금액은 없음"],
-  },
-  {
-    id: 8,
-    question: "금리가 조금 낮더라도 언제든 돈을 뺄 수 있는 게 중요한가요?",
-    options: ["매우 중요함, 유동성이 우선", "중요하지만 금리도 고려함", "금리가 더 중요함"],
-  },
-  {
-    id: 9,
-    question: "재테크나 금융 상품 경험이 있나요?",
-    options: ["없음, 처음 시작하는 단계", "예적금 정도는 해봤음", "다양한 금융 상품 경험 있음"],
-  },
-  {
-    id: 10,
-    question: "지금 가장 중요하게 생각하는 것은?",
-    options: ["안전성 (원금 보장)", "수익성 (높은 금리)", "유동성 (자유로운 입출금)"],
-  },
-  {
-    id: 11,
-    question: "저축을 시작하려는 가장 큰 이유는?",
-    options: ["생활비 절약 습관 만들기", "특정 목적을 위한 저축", "자산을 불리고 싶어서"],
-  },
-  {
-    id: 12,
-    question: "매달 저축 금액이 일정한 편인가요?",
-    options: ["매달 비슷하게 저축 가능", "수입이 들쭉날쭉해서 일정하지 않음"],
-  },
+  { id: 1,  question: "나는 저축할 때 원금을 잃지 않는 것이 가장 중요하다." },
+  { id: 2,  question: "나는 6개월 이내의 단기 저축을 선호한다." },
+  { id: 3,  question: "나는 목돈(1000만원 이상)을 모으는 것이 목표다." },
+  { id: 4,  question: "나는 매달 일정한 금액을 꾸준히 저축할 수 있다." },
+  { id: 5,  question: "나는 필요할 때 언제든 돈을 꺼낼 수 있는 유동성이 중요하다." },
+  { id: 6,  question: "나는 2년 이상 장기 저축도 괜찮다." },
+  { id: 7,  question: "나는 금리가 높다면 오랫동안 돈을 묶어두는 것을 감수할 수 있다." },
+  { id: 8,  question: "나는 소액이라도 자유롭게 저축하는 방식을 선호한다." },
+  { id: 9,  question: "나는 비상금(생활비 3개월치)이 이미 충분히 마련되어 있다." },
+  { id: 10, question: "나는 저축보다 높은 수익률을 위해 어느 정도 위험을 감수할 수 있다." },
+  { id: 11, question: "나는 특정 목표(여행, 결혼, 차 구매 등)를 위해 저축하고 있다." },
+  { id: 12, question: "나는 매달 저축 금액이 일정하지 않고 들쭉날쭉한 편이다." },
 ];
+
+// 척도 텍스트
+const SCALE_LABELS = {
+  1: "전혀 그렇지 않다",
+  2: "그렇지 않다",
+  3: "보통이다",
+  4: "그렇다",
+  5: "매우 그렇다",
+};
 
 // 성향 유형별 상품 필터 조건
 const PERSONALITY_PRODUCT_FILTER = {
@@ -120,12 +81,15 @@ exports.getPersonalityQuestions = onRequest((req, res) => {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
 
-  return res.status(200).json({ questions: PERSONALITY_QUESTIONS });
+  return res.status(200).json({
+    questions: PERSONALITY_QUESTIONS,
+    scale: SCALE_LABELS,
+  });
 });
 
 // 성향 테스트 결과 분석
 // POST /personalityTest
-// body: { answers: [0, 1, 2, ...] } (각 질문의 선택지 인덱스, 0부터 시작)
+// body: { answers: [1~5, 1~5, ...] } (각 질문에 대한 1~5점 점수)
 exports.personalityTest = onRequest(async (req, res) => {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
@@ -137,8 +101,15 @@ exports.personalityTest = onRequest(async (req, res) => {
       return res.status(400).json({ error: "answers 배열 필수 (최소 10개)" });
     }
 
+    // 점수 유효성 검사 (1~5만 허용)
+    const invalid = answers.some((a) => !Number.isInteger(a) || a < 1 || a > 5);
+    if (invalid) {
+      return res.status(400).json({ error: "각 답변은 1~5 사이의 정수여야 합니다" });
+    }
+
+    // AI에게 전달할 질문+점수 텍스트
     const qaText = PERSONALITY_QUESTIONS.slice(0, answers.length)
-      .map((q, i) => `Q${i + 1}. ${q.question}\n답변: ${q.options[answers[i]] || "미선택"}`)
+      .map((q, i) => `Q${i + 1}. ${q.question}\n답변: ${answers[i]}점 (${SCALE_LABELS[answers[i]]})`)
       .join("\n\n");
 
     let deposits, savings;
@@ -153,7 +124,8 @@ exports.personalityTest = onRequest(async (req, res) => {
     }
 
     const systemPrompt = `너는 금융 성향 분석 전문가야.
-사용자의 설문 답변을 분석해서 아래 4가지 유형 중 하나로 판정해줘.
+사용자가 각 문항에 1~5점으로 답했어. 1점은 "전혀 그렇지 않다", 5점은 "매우 그렇다"를 의미해.
+답변을 종합 분석해서 아래 4가지 유형 중 하나로 판정해줘.
 
 유형 목록:
 - 단기 안전형: 6개월 이하 단기, 원금 보장 중시
