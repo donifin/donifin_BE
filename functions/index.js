@@ -16,6 +16,7 @@ const { getCommunityPosts,
 const { recordProductView,
         getPopularProducts }      = require("./popular");
 const { saveProfile }             = require("./profile");
+const { getQuiz }                 = require("./quiz");
 
 // ── 내보내기 ─────────────────────────────────────────────────
 module.exports = {
@@ -31,4 +32,5 @@ module.exports = {
   recordProductView,
   getPopularProducts,
   saveProfile,
+  getQuiz,
 };
