@@ -48,6 +48,42 @@ const OVERSEAS_STOCKS = [
   { name: "구글", ticker: "GOOGL" },
 ];
 
+// 상승 TOP 5 계산용 종목 풀 (국내+해외 다양한 종목 30개)
+const TOP_GAINERS_POOL = [
+  // 국내 (15개)
+  { name: "삼성전자", ticker: "005930.KS" },
+  { name: "SK하이닉스", ticker: "000660.KS" },
+  { name: "카카오", ticker: "035720.KS" },
+  { name: "NAVER", ticker: "035420.KS" },
+  { name: "현대차", ticker: "005380.KS" },
+  { name: "LG에너지솔루션", ticker: "373220.KS" },
+  { name: "삼성바이오로직스", ticker: "207940.KS" },
+  { name: "기아", ticker: "000270.KS" },
+  { name: "POSCO홀딩스", ticker: "005490.KS" },
+  { name: "LG화학", ticker: "051910.KS" },
+  { name: "셀트리온", ticker: "068270.KS" },
+  { name: "KB금융", ticker: "105560.KS" },
+  { name: "신한지주", ticker: "055550.KS" },
+  { name: "삼성SDI", ticker: "006400.KS" },
+  { name: "현대모비스", ticker: "012330.KS" },
+  // 해외 (15개)
+  { name: "애플", ticker: "AAPL" },
+  { name: "테슬라", ticker: "TSLA" },
+  { name: "엔비디아", ticker: "NVDA" },
+  { name: "마이크로소프트", ticker: "MSFT" },
+  { name: "구글", ticker: "GOOGL" },
+  { name: "아마존", ticker: "AMZN" },
+  { name: "메타", ticker: "META" },
+  { name: "넷플릭스", ticker: "NFLX" },
+  { name: "AMD", ticker: "AMD" },
+  { name: "인텔", ticker: "INTC" },
+  { name: "디즈니", ticker: "DIS" },
+  { name: "코카콜라", ticker: "KO" },
+  { name: "맥도날드", ticker: "MCD" },
+  { name: "JP모건", ticker: "JPM" },
+  { name: "버크셔해서웨이", ticker: "BRK-B" },
+];
+
 // ── 환율 조회 ─────────────────────────────────────────────
 const EXCHANGE_ITEM_MAP = {
   "0000001": { cur_unit: "USD", cur_nm: "미국 달러" },
@@ -134,16 +170,16 @@ async function fetchStockChart(region = "국내") {
     .map((r) => r.value);
 }
 
-// ── 상승 TOP 5 (국내+해외 종목 등락률 정렬) ───────────────
+// ── 상승 TOP 5 (30개 종목 풀에서 등락률 정렬) ─────────────
 async function fetchTopGainers() {
-  const allStocks = [...DOMESTIC_STOCKS, ...OVERSEAS_STOCKS];
   const results = await Promise.allSettled(
-    allStocks.map((item) => fetchYahooStock(item))
+    TOP_GAINERS_POOL.map((item) => fetchYahooStock(item))
   );
 
   return results
     .filter((r) => r.status === "fulfilled")
     .map((r) => r.value)
+    .filter((s) => s.change_raw > 0)         // 상승 종목만
     .sort((a, b) => b.change_raw - a.change_raw)
     .slice(0, 5);
 }

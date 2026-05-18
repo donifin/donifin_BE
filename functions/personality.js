@@ -2,12 +2,48 @@ const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const {
   openai,
+  supabase,
   USE_MOCK,
   MOCK_DEPOSIT_PRODUCTS,
   MOCK_SAVING_PRODUCTS,
   setCorsHeaders,
   fetchFssProducts,
 } = require("./config");
+
+// join_member 텍스트에서 연령 제한 파싱.
+// "만 17세 미만의 ..."   → { type: "max", age: 17, inclusive: false }
+// "만 19세 이상"        → { type: "min", age: 19, inclusive: true }
+// "만 65세 이하"        → { type: "max", age: 65, inclusive: true }
+// 매칭 안 되면 null (제한 없는 것으로 간주).
+function parseAgeLimit(joinMember) {
+  if (typeof joinMember !== "string" || !joinMember.trim()) return null;
+  // 가장 흔한 패턴부터.
+  const undermatch = joinMember.match(/만\s*(\d+)\s*세\s*미만/);
+  if (undermatch) {
+    return { type: "max", age: parseInt(undermatch[1], 10), inclusive: false };
+  }
+  const minMatch = joinMember.match(/만\s*(\d+)\s*세\s*이상/);
+  if (minMatch) {
+    return { type: "min", age: parseInt(minMatch[1], 10), inclusive: true };
+  }
+  const maxMatch = joinMember.match(/만\s*(\d+)\s*세\s*이하/);
+  if (maxMatch) {
+    return { type: "max", age: parseInt(maxMatch[1], 10), inclusive: true };
+  }
+  return null;
+}
+
+// 주어진 나이가 join_member 제한을 통과하는지.
+function isAgeEligible(age, joinMember) {
+  if (age == null) return true; // 나이 모르면 통과시킴
+  const limit = parseAgeLimit(joinMember);
+  if (!limit) return true; // 제한 없으면 통과
+  if (limit.type === "min") {
+    return limit.inclusive ? age >= limit.age : age > limit.age;
+  }
+  // max
+  return limit.inclusive ? age <= limit.age : age < limit.age;
+}
 
 // 성향 테스트 질문 목록 (1~5점 척도: 전혀 그렇지 않다 ~ 매우 그렇다)
 const PERSONALITY_QUESTIONS = [
@@ -42,8 +78,9 @@ const PERSONALITY_PRODUCT_FILTER = {
   "목돈 마련형": { type: "saving", minTerm: 12 },
 };
 
-// 성향에 맞는 상품 필터링
-function filterProductsByPersonality(personalityType, deposits, savings) {
+// 성향에 맞는 상품 필터링.
+// age가 주어지면 join_member의 연령 제한도 적용 (예: 25살에게 17세 미만 상품 제외).
+function filterProductsByPersonality(personalityType, deposits, savings, age) {
   const filter = PERSONALITY_PRODUCT_FILTER[personalityType];
   if (!filter) return [];
 
@@ -51,6 +88,9 @@ function filterProductsByPersonality(personalityType, deposits, savings) {
 
   return products
     .map((p) => {
+      // 연령 부적합 상품은 일찍 제외.
+      if (!isAgeEligible(age, p.join_member)) return null;
+
       let matchedOptions = p.options;
 
       if (filter.maxTerm) {
@@ -96,9 +136,26 @@ exports.personalityTest = onRequest(async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
 
   try {
-    const { answers } = req.body;
+    const { answers, user_id } = req.body;
     if (!answers || !Array.isArray(answers) || answers.length < 10) {
       return res.status(400).json({ error: "answers 배열 필수 (최소 10개)" });
+    }
+
+    // user_id가 있으면 profiles에서 나이 조회 (실패해도 진행 — 필터 없이).
+    let userAge = null;
+    if (user_id) {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("age")
+          .eq("id", user_id)
+          .single();
+        if (profile && typeof profile.age === "number") {
+          userAge = profile.age;
+        }
+      } catch (e) {
+        logger.warn("프로필 조회 실패 (필터 없이 진행):", e?.message || e);
+      }
     }
 
     // 점수 유효성 검사 (1~5만 허용)
@@ -156,7 +213,12 @@ exports.personalityTest = onRequest(async (req, res) => {
     }
 
     const { type, description } = parsed;
-    const recommendedProducts = filterProductsByPersonality(type, deposits, savings);
+    const recommendedProducts = filterProductsByPersonality(
+      type,
+      deposits,
+      savings,
+      userAge,
+    );
 
     return res.status(200).json({
       type,
