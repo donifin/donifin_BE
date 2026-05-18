@@ -85,20 +85,31 @@ const TOP_GAINERS_POOL = [
 ];
 
 // ── 환율 조회 ─────────────────────────────────────────────
+// ECOS 731Y001 통계항목코드. 잘못된 코드는 fetchEcos에서 빈 결과로 떨어져
+// Promise.allSettled가 자동으로 제외하므로 안전.
 const EXCHANGE_ITEM_MAP = {
   "0000001": { cur_unit: "USD", cur_nm: "미국 달러" },
   "0000002": { cur_unit: "JPY(100)", cur_nm: "일본 엔(100)" },
   "0000003": { cur_unit: "EUR", cur_nm: "유럽 유로" },
   "0000053": { cur_unit: "CNH", cur_nm: "중국 위안" },
+  "0000005": { cur_unit: "GBP", cur_nm: "영국 파운드" },
+  "0000006": { cur_unit: "CAD", cur_nm: "캐나다 달러" },
+  "0000020": { cur_unit: "AUD", cur_nm: "호주 달러" },
+  "0000027": { cur_unit: "HKD", cur_nm: "홍콩 달러" },
 };
 
 async function fetchExchangeRate() {
   if (!ECOS_API_KEY) {
+    const today = new Date().toISOString().slice(0, 10);
     return [
-      { cur_unit: "USD", cur_nm: "미국 달러", deal_bas_r: "1,350.00", date: new Date().toISOString().slice(0, 10) },
-      { cur_unit: "EUR", cur_nm: "유럽 유로", deal_bas_r: "1,480.00", date: new Date().toISOString().slice(0, 10) },
-      { cur_unit: "JPY(100)", cur_nm: "일본 엔(100)", deal_bas_r: "920.00", date: new Date().toISOString().slice(0, 10) },
-      { cur_unit: "CNH", cur_nm: "중국 위안", deal_bas_r: "190.00", date: new Date().toISOString().slice(0, 10) },
+      { cur_unit: "USD", cur_nm: "미국 달러", deal_bas_r: "1,350.00", date: today },
+      { cur_unit: "EUR", cur_nm: "유럽 유로", deal_bas_r: "1,480.00", date: today },
+      { cur_unit: "JPY(100)", cur_nm: "일본 엔(100)", deal_bas_r: "920.00", date: today },
+      { cur_unit: "CNH", cur_nm: "중국 위안", deal_bas_r: "190.00", date: today },
+      { cur_unit: "GBP", cur_nm: "영국 파운드", deal_bas_r: "1,710.00", date: today },
+      { cur_unit: "CAD", cur_nm: "캐나다 달러", deal_bas_r: "990.00", date: today },
+      { cur_unit: "AUD", cur_nm: "호주 달러", deal_bas_r: "880.00", date: today },
+      { cur_unit: "HKD", cur_nm: "홍콩 달러", deal_bas_r: "172.00", date: today },
     ];
   }
 
