@@ -5,6 +5,7 @@ const {
   NAVER_CLIENT_ID,
   NAVER_CLIENT_SECRET,
   ECOS_API_KEY,
+  EXIM_API_KEY,
   setCorsHeaders,
 } = require("./config");
 
@@ -84,52 +85,100 @@ const TOP_GAINERS_POOL = [
   { name: "버크셔해서웨이", ticker: "BRK-B" },
 ];
 
-// ── 환율 조회 ─────────────────────────────────────────────
-// ECOS 731Y001 통계항목코드. 잘못된 코드는 fetchEcos에서 빈 결과로 떨어져
-// Promise.allSettled가 자동으로 제외하므로 안전.
-const EXCHANGE_ITEM_MAP = {
-  "0000001": { cur_unit: "USD", cur_nm: "미국 달러" },
-  "0000002": { cur_unit: "JPY(100)", cur_nm: "일본 엔(100)" },
-  "0000003": { cur_unit: "EUR", cur_nm: "유럽 유로" },
-  "0000053": { cur_unit: "CNH", cur_nm: "중국 위안" },
-  "0000005": { cur_unit: "GBP", cur_nm: "영국 파운드" },
-  "0000006": { cur_unit: "CAD", cur_nm: "캐나다 달러" },
-  "0000020": { cur_unit: "AUD", cur_nm: "호주 달러" },
-  "0000027": { cur_unit: "HKD", cur_nm: "홍콩 달러" },
+// ── 환율 조회 (한국수출입은행 API) ────────────────────────
+// https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
+// 한 번 호출에 ~20개 통화. 응답 키: cur_unit, cur_nm, deal_bas_r 등.
+// 휴장일/주말엔 빈 배열이 오므로 평일 N일 거슬러 시도.
+
+// FE 노출 우선순위 — 주요국 + 한국인 자주 거래.
+const EXCHANGE_PREFERRED_ORDER = [
+  "USD", "EUR", "JPY", "JPY(100)", "CNH", "CNY",
+  "GBP", "AUD", "CAD", "CHF", "HKD", "SGD",
+  "NZD", "SEK", "NOK", "DKK", "THB",
+];
+
+// 한국어 라벨 보정 (API가 안 주거나 짧게 줄 때).
+const KOREAN_CUR_NAMES = {
+  USD: "미국 달러",
+  EUR: "유럽 유로",
+  JPY: "일본 엔",
+  "JPY(100)": "일본 엔(100)",
+  CNH: "중국 위안",
+  CNY: "중국 위안",
+  GBP: "영국 파운드",
+  AUD: "호주 달러",
+  CAD: "캐나다 달러",
+  CHF: "스위스 프랑",
+  HKD: "홍콩 달러",
+  SGD: "싱가포르 달러",
+  NZD: "뉴질랜드 달러",
+  SEK: "스웨덴 크로나",
+  NOK: "노르웨이 크로네",
+  DKK: "덴마크 크로네",
+  THB: "태국 바트",
 };
 
+function _exchangeMock() {
+  const today = new Date().toISOString().slice(0, 10);
+  return [
+    { cur_unit: "USD", cur_nm: "미국 달러", deal_bas_r: "1,350.00", date: today },
+    { cur_unit: "EUR", cur_nm: "유럽 유로", deal_bas_r: "1,480.00", date: today },
+    { cur_unit: "JPY(100)", cur_nm: "일본 엔(100)", deal_bas_r: "920.00", date: today },
+    { cur_unit: "CNH", cur_nm: "중국 위안", deal_bas_r: "190.00", date: today },
+    { cur_unit: "GBP", cur_nm: "영국 파운드", deal_bas_r: "1,710.00", date: today },
+    { cur_unit: "AUD", cur_nm: "호주 달러", deal_bas_r: "880.00", date: today },
+    { cur_unit: "CAD", cur_nm: "캐나다 달러", deal_bas_r: "990.00", date: today },
+    { cur_unit: "CHF", cur_nm: "스위스 프랑", deal_bas_r: "1,550.00", date: today },
+    { cur_unit: "HKD", cur_nm: "홍콩 달러", deal_bas_r: "172.00", date: today },
+    { cur_unit: "SGD", cur_nm: "싱가포르 달러", deal_bas_r: "1,020.00", date: today },
+  ];
+}
+
+function _dateYYYYMMDD(d) {
+  return d.toISOString().slice(0, 10).replace(/-/g, "");
+}
+
 async function fetchExchangeRate() {
-  if (!ECOS_API_KEY) {
-    const today = new Date().toISOString().slice(0, 10);
-    return [
-      { cur_unit: "USD", cur_nm: "미국 달러", deal_bas_r: "1,350.00", date: today },
-      { cur_unit: "EUR", cur_nm: "유럽 유로", deal_bas_r: "1,480.00", date: today },
-      { cur_unit: "JPY(100)", cur_nm: "일본 엔(100)", deal_bas_r: "920.00", date: today },
-      { cur_unit: "CNH", cur_nm: "중국 위안", deal_bas_r: "190.00", date: today },
-      { cur_unit: "GBP", cur_nm: "영국 파운드", deal_bas_r: "1,710.00", date: today },
-      { cur_unit: "CAD", cur_nm: "캐나다 달러", deal_bas_r: "990.00", date: today },
-      { cur_unit: "AUD", cur_nm: "호주 달러", deal_bas_r: "880.00", date: today },
-      { cur_unit: "HKD", cur_nm: "홍콩 달러", deal_bas_r: "172.00", date: today },
-    ];
+  if (!EXIM_API_KEY) {
+    return _exchangeMock();
   }
 
-  const itemCodes = Object.keys(EXCHANGE_ITEM_MAP);
-  const results = await Promise.allSettled(
-    itemCodes.map(async (code) => {
-      const rows = await fetchEcos("731Y001", code, 14);
-      if (rows.length === 0) return null;
-      const latest = rows[rows.length - 1];
-      return {
-        ...EXCHANGE_ITEM_MAP[code],
-        deal_bas_r: parseFloat(latest.DATA_VALUE).toFixed(2),
-        date: latest.TIME,
-      };
-    })
-  );
+  // 최대 7일 거슬러 시도 (휴장일 회피).
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const searchdate = _dateYYYYMMDD(date);
+    try {
+      const res = await axios.get(
+        "https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON",
+        {
+          params: { authkey: EXIM_API_KEY, searchdate, data: "AP01" },
+          timeout: 8000,
+        }
+      );
+      const list = Array.isArray(res.data) ? res.data : [];
+      if (list.length === 0) continue;
 
-  return results
-    .filter((r) => r.status === "fulfilled" && r.value)
-    .map((r) => r.value);
+      const normalized = list
+        .filter((r) => r && r.cur_unit && r.deal_bas_r)
+        .map((r) => ({
+          cur_unit: r.cur_unit,
+          cur_nm: KOREAN_CUR_NAMES[r.cur_unit] || r.cur_nm || r.cur_unit,
+          deal_bas_r: r.deal_bas_r, // 이미 콤마 포함 문자열
+          date: searchdate,
+        }));
+      const score = (u) => {
+        const idx = EXCHANGE_PREFERRED_ORDER.indexOf(u);
+        return idx === -1 ? EXCHANGE_PREFERRED_ORDER.length : idx;
+      };
+      normalized.sort((a, b) => score(a.cur_unit) - score(b.cur_unit));
+      return normalized;
+    } catch (e) {
+      logger.warn(`fetchExchangeRate(${searchdate}) 실패:`, e?.message || e);
+    }
+  }
+
+  logger.warn("환율 API 실패 — mock으로 폴백");
+  return _exchangeMock();
 }
 
 // ── Yahoo Finance 단일 종목 조회 (재사용) ─────────────────

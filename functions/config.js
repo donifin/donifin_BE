@@ -18,6 +18,8 @@ const FSS_API_KEY = process.env.FSS_API_KEY;
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID;
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 const ECOS_API_KEY = process.env.ECOS_API_KEY;
+// 한국수출입은행 환율 API 인증키 — koreaexim.go.kr 에서 발급 (무료, 1일 1000회).
+const EXIM_API_KEY = process.env.EXIM_API_KEY;
 
 const USE_MOCK = !FSS_API_KEY; // 금감원 API 키 없으면 mock 데이터 사용
 
@@ -56,6 +58,7 @@ module.exports = {
   NAVER_CLIENT_ID,
   NAVER_CLIENT_SECRET,
   ECOS_API_KEY,
+  EXIM_API_KEY,
   USE_MOCK,
   MOCK_DEPOSIT_PRODUCTS,
   MOCK_SAVING_PRODUCTS,
