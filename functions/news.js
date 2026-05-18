@@ -188,11 +188,35 @@ async function fetchYahooStock({ name, ticker, region }) {
     { params: { interval: "1d", range: "1mo" } }
   );
   const chart = res.data.chart.result[0];
-  const timestamps = chart.timestamp;
-  const closes = chart.indicators.quote[0].close;
-  const currentPrice = closes[closes.length - 1];
-  const prevPrice = closes[closes.length - 2];
-  const change = (((currentPrice - prevPrice) / prevPrice) * 100).toFixed(2);
+  const timestamps = chart.timestamp || [];
+  const closes = (chart.indicators?.quote?.[0]?.close) || [];
+
+  // 장이 안 열린 날(주말/휴일)도 timestamp에 포함되지만 close는 null.
+  // 마지막에서부터 거슬러 올라가며 null이 아닌 첫 close를 사용.
+  let curIdx = closes.length - 1;
+  while (curIdx >= 0 && closes[curIdx] == null) curIdx--;
+
+  if (curIdx < 0) {
+    // 데이터 전무.
+    return {
+      name,
+      ticker,
+      region: region || null,
+      price: "-",
+      price_raw: null,
+      change: "",
+      change_raw: 0,
+      chart: [],
+    };
+  }
+
+  const currentPrice = closes[curIdx];
+  let prevIdx = curIdx - 1;
+  while (prevIdx >= 0 && closes[prevIdx] == null) prevIdx--;
+  const prevPrice = prevIdx >= 0 ? closes[prevIdx] : currentPrice;
+  const change = prevPrice
+    ? (((currentPrice - prevPrice) / prevPrice) * 100).toFixed(2)
+    : "0.00";
 
   return {
     name,
@@ -200,12 +224,17 @@ async function fetchYahooStock({ name, ticker, region }) {
     region: region || null,
     price: Math.round(currentPrice).toLocaleString(),
     price_raw: currentPrice,
-    change: `${change > 0 ? "+" : ""}${change}%`,
+    change: `${parseFloat(change) > 0 ? "+" : ""}${change}%`,
     change_raw: parseFloat(change),
-    chart: timestamps.map((t, i) => ({
-      date: new Date(t * 1000).toISOString().slice(0, 10),
-      close: Math.round(closes[i]),
-    })),
+    // null close는 차트에서 제외 (직선 끊김 방지).
+    chart: timestamps
+      .map((t, i) => closes[i] == null
+          ? null
+          : {
+              date: new Date(t * 1000).toISOString().slice(0, 10),
+              close: Math.round(closes[i]),
+            })
+      .filter((p) => p !== null),
   };
 }
 
