@@ -9,7 +9,6 @@ const {
 } = require("./config");
 
 // 한국은행 ECOS API 공통 호출 함수
-// statCode: 통계표 코드, itemCode: 통계 항목 코드 (필수), days: 조회 기간(일)
 async function fetchEcos(statCode, itemCode, days = 30) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
@@ -22,8 +21,17 @@ async function fetchEcos(statCode, itemCode, days = 30) {
   return res.data.StatisticSearch.row || [];
 }
 
-// 주식 차트 조회할 대표 종목
-const STOCK_TICKERS = [
+// ── 주식 종목 정의 ─────────────────────────────────────────
+// 주요 지수
+const MAJOR_INDICES = [
+  { name: "코스피", ticker: "^KS11", region: "국내" },
+  { name: "코스닥", ticker: "^KQ11", region: "국내" },
+  { name: "S&P 500", ticker: "^GSPC", region: "해외" },
+  { name: "나스닥", ticker: "^IXIC", region: "해외" },
+];
+
+// 국내 인기 종목
+const DOMESTIC_STOCKS = [
   { name: "삼성전자", ticker: "005930.KS" },
   { name: "SK하이닉스", ticker: "000660.KS" },
   { name: "카카오", ticker: "035720.KS" },
@@ -31,8 +39,16 @@ const STOCK_TICKERS = [
   { name: "현대차", ticker: "005380.KS" },
 ];
 
-// 환율 조회 (한국은행 ECOS API)
-// 통계표: 731Y001 (주요국통화의 대원화환율)
+// 해외 인기 종목
+const OVERSEAS_STOCKS = [
+  { name: "애플", ticker: "AAPL" },
+  { name: "테슬라", ticker: "TSLA" },
+  { name: "엔비디아", ticker: "NVDA" },
+  { name: "마이크로소프트", ticker: "MSFT" },
+  { name: "구글", ticker: "GOOGL" },
+];
+
+// ── 환율 조회 ─────────────────────────────────────────────
 const EXCHANGE_ITEM_MAP = {
   "0000001": { cur_unit: "USD", cur_nm: "미국 달러" },
   "0000002": { cur_unit: "JPY(100)", cur_nm: "일본 엔(100)" },
@@ -50,13 +66,12 @@ async function fetchExchangeRate() {
     ];
   }
 
-  // 통화별로 각각 호출 (ECOS는 항목코드가 필수)
   const itemCodes = Object.keys(EXCHANGE_ITEM_MAP);
   const results = await Promise.allSettled(
     itemCodes.map(async (code) => {
       const rows = await fetchEcos("731Y001", code, 14);
       if (rows.length === 0) return null;
-      const latest = rows[rows.length - 1]; // 가장 최근
+      const latest = rows[rows.length - 1];
       return {
         ...EXCHANGE_ITEM_MAP[code],
         deal_bas_r: parseFloat(latest.DATA_VALUE).toFixed(2),
@@ -70,40 +85,70 @@ async function fetchExchangeRate() {
     .map((r) => r.value);
 }
 
-// 주식 차트 조회 (Yahoo Finance 비공식 API, 키 불필요)
-async function fetchStockChart() {
-  const results = await Promise.allSettled(
-    STOCK_TICKERS.map(async ({ name, ticker }) => {
-      const res = await axios.get(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`,
-        { params: { interval: "1d", range: "1mo" } }
-      );
-      const chart = res.data.chart.result[0];
-      const timestamps = chart.timestamp;
-      const closes = chart.indicators.quote[0].close;
-      const currentPrice = closes[closes.length - 1];
-      const prevPrice = closes[closes.length - 2];
-      const change = (((currentPrice - prevPrice) / prevPrice) * 100).toFixed(2);
-
-      return {
-        name,
-        ticker,
-        price: Math.round(currentPrice).toLocaleString(),
-        change: `${change > 0 ? "+" : ""}${change}%`,
-        chart: timestamps.map((t, i) => ({
-          date: new Date(t * 1000).toISOString().slice(0, 10),
-          close: Math.round(closes[i]),
-        })),
-      };
-    })
+// ── Yahoo Finance 단일 종목 조회 (재사용) ─────────────────
+async function fetchYahooStock({ name, ticker, region }) {
+  const res = await axios.get(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`,
+    { params: { interval: "1d", range: "1mo" } }
   );
+  const chart = res.data.chart.result[0];
+  const timestamps = chart.timestamp;
+  const closes = chart.indicators.quote[0].close;
+  const currentPrice = closes[closes.length - 1];
+  const prevPrice = closes[closes.length - 2];
+  const change = (((currentPrice - prevPrice) / prevPrice) * 100).toFixed(2);
 
+  return {
+    name,
+    ticker,
+    region: region || null,
+    price: Math.round(currentPrice).toLocaleString(),
+    price_raw: currentPrice,
+    change: `${change > 0 ? "+" : ""}${change}%`,
+    change_raw: parseFloat(change),
+    chart: timestamps.map((t, i) => ({
+      date: new Date(t * 1000).toISOString().slice(0, 10),
+      close: Math.round(closes[i]),
+    })),
+  };
+}
+
+// ── 주요 지수 조회 ────────────────────────────────────────
+async function fetchMajorIndices() {
+  const results = await Promise.allSettled(
+    MAJOR_INDICES.map((item) => fetchYahooStock(item))
+  );
   return results
     .filter((r) => r.status === "fulfilled")
     .map((r) => r.value);
 }
 
-// 경제뉴스 조회 (네이버 뉴스 API)
+// ── 인기 종목 조회 (국내/해외) ────────────────────────────
+async function fetchStockChart(region = "국내") {
+  const stocks = region === "해외" ? OVERSEAS_STOCKS : DOMESTIC_STOCKS;
+  const results = await Promise.allSettled(
+    stocks.map((item) => fetchYahooStock({ ...item, region }))
+  );
+  return results
+    .filter((r) => r.status === "fulfilled")
+    .map((r) => r.value);
+}
+
+// ── 상승 TOP 5 (국내+해외 종목 등락률 정렬) ───────────────
+async function fetchTopGainers() {
+  const allStocks = [...DOMESTIC_STOCKS, ...OVERSEAS_STOCKS];
+  const results = await Promise.allSettled(
+    allStocks.map((item) => fetchYahooStock(item))
+  );
+
+  return results
+    .filter((r) => r.status === "fulfilled")
+    .map((r) => r.value)
+    .sort((a, b) => b.change_raw - a.change_raw)
+    .slice(0, 5);
+}
+
+// ── 경제뉴스 조회 (네이버 뉴스 API) ───────────────────────
 async function fetchEconomyNews(keyword = "경제") {
   if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
     return [
@@ -129,8 +174,7 @@ async function fetchEconomyNews(keyword = "경제") {
   }));
 }
 
-// 금리 조회 (한국은행 ECOS API)
-// 통계표: 722Y001, 항목: 0101000 (한국은행 기준금리)
+// ── 금리 조회 ─────────────────────────────────────────────
 async function fetchInterestRate() {
   if (!ECOS_API_KEY) {
     return {
@@ -150,20 +194,23 @@ async function fetchInterestRate() {
   };
 }
 
-// 금융 뉴스 통합 조회
-// GET /getNews?category=환율|주식|경제뉴스|금리
-// category 없으면 전체 반환
+// ── 금융 뉴스 통합 조회 ──────────────────────────────────
+// GET /getNews?category=환율|주식|경제뉴스|금리|주요지수|상승TOP5
+// GET /getNews?category=주식&region=국내|해외
+// category 없으면 전체 반환 (주식은 국내만)
 exports.getNews = onRequest(async (req, res) => {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
 
   try {
-    const { category } = req.query;
+    const { category, region } = req.query;
     const result = {};
     const fetchAll = !category;
 
+    if (fetchAll || category === "주요지수") result.major_indices = await fetchMajorIndices();
+    if (fetchAll || category === "주식") result.stocks = await fetchStockChart(region || "국내");
+    if (fetchAll || category === "상승TOP5") result.top_gainers = await fetchTopGainers();
     if (fetchAll || category === "환율") result.exchange_rate = await fetchExchangeRate();
-    if (fetchAll || category === "주식") result.stocks = await fetchStockChart();
     if (fetchAll || category === "경제뉴스") result.news = await fetchEconomyNews("경제");
     if (fetchAll || category === "금리") result.interest_rate = await fetchInterestRate();
 

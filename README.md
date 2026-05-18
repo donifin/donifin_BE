@@ -196,18 +196,42 @@ GET /getProducts?type=deposit&term=12&sort=high
 
 ### 금융 뉴스
 
-#### `GET /getNews` — 환율 / 주식 / 경제뉴스 / 금리
+#### `GET /getNews` — 주요지수 / 주식 / 상승TOP5 / 환율 / 경제뉴스 / 금리
 
 | 파라미터 | 필수 | 설명 |
 |----------|------|------|
-| `category` | 선택 | `환율` / `주식` / `경제뉴스` / `금리` / 없으면 전체 |
+| `category` | 선택 | `주요지수` / `주식` / `상승TOP5` / `환율` / `경제뉴스` / `금리` / 없으면 전체 |
+| `region` | 선택 | `국내`(기본) / `해외` — `category=주식`일 때만 |
 
 ```
-GET /getNews?category=환율
-GET /getNews           ← 전체 반환
+GET /getNews                            ← 전체 반환
+GET /getNews?category=주요지수            ← 코스피/코스닥/S&P500/나스닥
+GET /getNews?category=주식&region=국내    ← 국내 인기 5종목
+GET /getNews?category=주식&region=해외    ← 해외 인기 5종목
+GET /getNews?category=상승TOP5            ← 등락률 TOP 5
 ```
 
-주식 조회 대표 종목: 삼성전자, SK하이닉스, 카카오, NAVER, 현대차
+**조회 종목:**
+- 주요 지수: 코스피, 코스닥, S&P 500, 나스닥
+- 국내 인기: 삼성전자, SK하이닉스, 카카오, NAVER, 현대차
+- 해외 인기: 애플, 테슬라, 엔비디아, 마이크로소프트, 구글
+
+**응답 예시 (주요지수):**
+```json
+{
+  "major_indices": [
+    {
+      "name": "코스피",
+      "ticker": "^KS11",
+      "region": "국내",
+      "price": "2,720",
+      "change": "+0.85%",
+      "chart": [ { "date": "2026-04-01", "close": 2700 }, ... ]
+    }
+    // ... 4개
+  ]
+}
+```
 
 ---
 
