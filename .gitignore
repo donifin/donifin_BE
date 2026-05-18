@@ -75,3 +75,7 @@ skills-lock.json
 
 # 환경변수
 functions/.env
+
+# Claude 컨텍스트 파일
+CLAUDE.md
+CLAUDE_FRONTEND.md
