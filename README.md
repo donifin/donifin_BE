@@ -211,6 +211,12 @@ GET /getNews?category=주식&region=해외    ← 해외 인기 5종목
 GET /getNews?category=상승TOP5            ← 등락률 TOP 5
 ```
 
+**경제뉴스 키워드 변경:**
+```
+GET /getNews?category=경제뉴스&keyword=금리
+```
+keyword 미지정 시 "경제" 기본값.
+
 **조회 종목:**
 - 주요 지수: 코스피, 코스닥, S&P 500, 나스닥
 - 국내 인기: 삼성전자, SK하이닉스, 카카오, NAVER, 현대차
@@ -230,6 +236,19 @@ GET /getNews?category=상승TOP5            ← 등락률 TOP 5
     }
     // ... 4개
   ]
+}
+```
+
+#### `GET /searchAll?keyword=삼성` — 통합 검색
+
+종목(이름/티커) + 환율(통화 코드/한글명) + 뉴스 키워드 검색 결과를 한 번에 반환.
+
+```json
+{
+  "keyword": "삼성",
+  "stocks": [ { "name": "삼성전자", "price": "...", "chart": [...] } ],
+  "exchange": [],
+  "news": [ { "title": "...", "link": "..." } ]
 }
 ```
 
@@ -375,16 +394,6 @@ GET /getPopularProducts?age=25&occupation=직장인
 ```
 
 > 회원가입 시 사용자 정보 입력 후 호출. 이미 있으면 업데이트.
-
----
-
-### 카드 소개 (구현 예정)
-
-#### `GET /getCards` — 카드 목록 소개
-
-| 파라미터 | 필수 | 설명 |
-|----------|------|------|
-| `category` | 선택 | `신용` / `체크` / 없으면 전체 |
 
 ---
 

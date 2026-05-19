@@ -212,7 +212,22 @@ exports.personalityTest = onRequest(async (req, res) => {
       return res.status(500).json({ error: "AI 응답 파싱 실패" });
     }
 
-    const { type, description } = parsed;
+    let { type, description } = parsed;
+
+    // AI가 4가지 정의된 유형 외의 값을 줄 경우 방어.
+    const VALID_TYPES = ["단기 안전형", "장기 안전형", "소액 저축형", "목돈 마련형"];
+    if (!VALID_TYPES.includes(type)) {
+      logger.warn(`personalityTest: 유효하지 않은 type "${type}" — 기본값으로 폴백`);
+      // 비슷한 단어 포함 시 매핑 시도, 아니면 "단기 안전형" 기본.
+      const matched = VALID_TYPES.find((t) => type && type.includes(t.slice(0, 2)));
+      type = matched || "단기 안전형";
+      description = description || "성향을 명확히 판정하기 어려워 안전한 유형으로 분류했어요.";
+    }
+
+    if (typeof description !== "string" || description.trim().length === 0) {
+      description = "성향 설명을 생성하지 못했어요.";
+    }
+
     const recommendedProducts = filterProductsByPersonality(
       type,
       deposits,

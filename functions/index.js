@@ -8,7 +8,7 @@ const { getProducts }             = require("./products");
 const { chatBot }                 = require("./chatbot");
 const { getPersonalityQuestions,
         personalityTest }         = require("./personality");
-const { getNews }                 = require("./news");
+const { getNews, searchAll }      = require("./news");
 const { getCommunityPosts,
         getPost,
         createPost,
@@ -30,6 +30,7 @@ module.exports = {
   getPersonalityQuestions,
   personalityTest,
   getNews,
+  searchAll,
   getCommunityPosts,
   getPost,
   createPost,

@@ -31,23 +31,43 @@ function setCorsHeaders(res) {
 }
 
 // ── 금감원 API 상품 데이터 가져오기 ───────────────────────────
+// 네트워크/응답 오류 시 throw하지 않고 mock으로 폴백 (호출자가 빈 배열로 죽는 거 방지).
 async function fetchFssProducts(type) {
   const endpoint = type === "deposit"
     ? "http://finlife.fss.or.kr/finlifeapi/depositProductsSearch.json"
     : "http://finlife.fss.or.kr/finlifeapi/savingProductsSearch.json";
 
-  const res = await axios.get(endpoint, {
-    params: { auth: FSS_API_KEY, topFinGrpNo: "020000", pageNo: 1 },
-  });
+  const fallback = type === "deposit"
+    ? MOCK_DEPOSIT_PRODUCTS
+    : MOCK_SAVING_PRODUCTS;
 
-  const result = res.data.result;
-  const baseList = result.baseList;
-  const optionList = result.optionList;
+  if (!FSS_API_KEY) {
+    return fallback;
+  }
 
-  return baseList.map((product) => ({
-    ...product,
-    options: optionList.filter((o) => o.fin_prdt_cd === product.fin_prdt_cd),
-  }));
+  try {
+    const res = await axios.get(endpoint, {
+      params: { auth: FSS_API_KEY, topFinGrpNo: "020000", pageNo: 1 },
+      timeout: 10000,
+    });
+
+    const result = res.data?.result;
+    if (!result || !Array.isArray(result.baseList)) {
+      console.warn(`fetchFssProducts(${type}): 응답 구조 비정상 — mock 폴백`);
+      return fallback;
+    }
+
+    const baseList = result.baseList;
+    const optionList = Array.isArray(result.optionList) ? result.optionList : [];
+
+    return baseList.map((product) => ({
+      ...product,
+      options: optionList.filter((o) => o.fin_prdt_cd === product.fin_prdt_cd),
+    }));
+  } catch (e) {
+    console.warn(`fetchFssProducts(${type}) 실패 — mock 폴백:`, e?.message || e);
+    return fallback;
+  }
 }
 
 module.exports = {

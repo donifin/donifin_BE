@@ -358,26 +358,88 @@ async function fetchInterestRate() {
 // ── 금융 뉴스 통합 조회 ──────────────────────────────────
 // GET /getNews?category=환율|주식|경제뉴스|금리|주요지수|상승TOP5
 // GET /getNews?category=주식&region=국내|해외
+// GET /getNews?category=경제뉴스&keyword=금리
 // category 없으면 전체 반환 (주식은 국내만)
 exports.getNews = onRequest(async (req, res) => {
   setCorsHeaders(res);
   if (req.method === "OPTIONS") return res.status(204).send("");
 
   try {
-    const { category, region } = req.query;
+    const { category, region, keyword } = req.query;
     const result = {};
     const fetchAll = !category;
+    const newsKeyword = (typeof keyword === "string" && keyword.trim().length > 0)
+      ? keyword.trim()
+      : "경제";
 
     if (fetchAll || category === "주요지수") result.major_indices = await fetchMajorIndices();
     if (fetchAll || category === "주식") result.stocks = await fetchStockChart(region || "국내");
     if (fetchAll || category === "상승TOP5") result.top_gainers = await fetchTopGainers();
     if (fetchAll || category === "환율") result.exchange_rate = await fetchExchangeRate();
-    if (fetchAll || category === "경제뉴스") result.news = await fetchEconomyNews("경제");
+    if (fetchAll || category === "경제뉴스") result.news = await fetchEconomyNews(newsKeyword);
     if (fetchAll || category === "금리") result.interest_rate = await fetchInterestRate();
 
     return res.status(200).json(result);
   } catch (err) {
     logger.error("getNews error:", err);
     return res.status(500).json({ error: "뉴스 조회 실패" });
+  }
+});
+
+// ── 통합 검색 ─────────────────────────────────────────────
+// GET /searchAll?keyword=삼성
+// 종목(주요지수+국내+해외) + 환율 + 뉴스를 한 번에 검색.
+exports.searchAll = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+
+  try {
+    const { keyword } = req.query;
+    if (!keyword || typeof keyword !== "string" || keyword.trim().length === 0) {
+      return res.status(400).json({ error: "keyword 필수" });
+    }
+    const q = keyword.trim();
+    const qLower = q.toLowerCase();
+
+    // 1. 종목 후보 (가벼운 이름+티커 매칭, 차트 안 가져옴 — 빠름).
+    const allStockDefs = [
+      ...MAJOR_INDICES,
+      ...DOMESTIC_STOCKS.map((s) => ({ ...s, region: "국내" })),
+      ...OVERSEAS_STOCKS.map((s) => ({ ...s, region: "해외" })),
+    ];
+    const stockMatches = allStockDefs.filter(
+      (s) =>
+        s.name.toLowerCase().includes(qLower) ||
+        s.ticker.toLowerCase().includes(qLower),
+    );
+
+    // 매칭된 종목만 실제 가격 조회 (최대 10개).
+    const stockResults = await Promise.allSettled(
+      stockMatches.slice(0, 10).map((item) => fetchYahooStock(item)),
+    );
+    const stocks = stockResults
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => r.value);
+
+    // 2. 환율 후보 — 캐시 활용.
+    const allExchange = await fetchExchangeRate();
+    const exchange = allExchange.filter(
+      (e) =>
+        (e.cur_unit && e.cur_unit.toLowerCase().includes(qLower)) ||
+        (e.cur_nm && e.cur_nm.toLowerCase().includes(qLower)),
+    );
+
+    // 3. 뉴스 — 키워드 그대로 네이버 API 호출.
+    const news = await fetchEconomyNews(q);
+
+    return res.status(200).json({
+      keyword: q,
+      stocks,
+      exchange,
+      news,
+    });
+  } catch (err) {
+    logger.error("searchAll error:", err);
+    return res.status(500).json({ error: "검색 실패" });
   }
 });
