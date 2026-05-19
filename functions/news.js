@@ -138,7 +138,16 @@ function _dateYYYYMMDD(d) {
   return d.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
+// 환율 캐시 (1시간 TTL) — 한국수출입은행 API는 영업일 오전 11시 1회 갱신.
+const _exchangeCache = { data: null, expiresAt: 0 };
+const EXCHANGE_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
+
 async function fetchExchangeRate() {
+  // 캐시 hit
+  if (_exchangeCache.data && Date.now() < _exchangeCache.expiresAt) {
+    return _exchangeCache.data;
+  }
+
   if (!EXIM_API_KEY) {
     return _exchangeMock();
   }
@@ -171,6 +180,10 @@ async function fetchExchangeRate() {
         return idx === -1 ? EXCHANGE_PREFERRED_ORDER.length : idx;
       };
       normalized.sort((a, b) => score(a.cur_unit) - score(b.cur_unit));
+
+      // 캐시 저장
+      _exchangeCache.data = normalized;
+      _exchangeCache.expiresAt = Date.now() + EXCHANGE_CACHE_TTL_MS;
       return normalized;
     } catch (e) {
       logger.warn(`fetchExchangeRate(${searchdate}) 실패:`, e?.message || e);
@@ -183,11 +196,34 @@ async function fetchExchangeRate() {
 
 // ── Yahoo Finance 단일 종목 조회 (재사용) ─────────────────
 async function fetchYahooStock({ name, ticker, region }) {
-  const res = await axios.get(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`,
-    { params: { interval: "1d", range: "1mo" } }
-  );
-  const chart = res.data.chart.result[0];
+  const emptyResponse = {
+    name,
+    ticker,
+    region: region || null,
+    price: "-",
+    price_raw: null,
+    change: "",
+    change_raw: 0,
+    chart: [],
+  };
+
+  let res;
+  try {
+    res = await axios.get(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`,
+      { params: { interval: "1d", range: "1mo" }, timeout: 8000 }
+    );
+  } catch (e) {
+    logger.warn(`fetchYahooStock(${ticker}) 네트워크 실패:`, e?.message || e);
+    return emptyResponse;
+  }
+
+  // 응답 구조 방어적 파싱
+  const chart = res.data?.chart?.result?.[0];
+  if (!chart) {
+    logger.warn(`fetchYahooStock(${ticker}) 응답 구조 비정상`);
+    return emptyResponse;
+  }
   const timestamps = chart.timestamp || [];
   const closes = (chart.indicators?.quote?.[0]?.close) || [];
 
