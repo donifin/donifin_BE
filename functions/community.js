@@ -2,6 +2,28 @@ const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const { supabase, setCorsHeaders } = require("./config");
 
+// 작성자 정보 첨부 헬퍼 — FK 없이도 동작.
+async function attachProfiles(rows) {
+  const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+  if (userIds.length === 0) return rows.map((r) => ({ ...r, profiles: null }));
+
+  const { data: profiles, error } = await supabase
+    .from("profiles")
+    .select("id, name, age")
+    .in("id", userIds);
+
+  if (error) {
+    logger.warn("attachProfiles: 프로필 조회 실패", error.message);
+    return rows.map((r) => ({ ...r, profiles: null }));
+  }
+
+  const map = {};
+  for (const p of profiles || []) {
+    map[p.id] = { name: p.name, age: p.age };
+  }
+  return rows.map((r) => ({ ...r, profiles: map[r.user_id] || null }));
+}
+
 // 게시글 목록 조회
 // GET /getCommunityPosts?page=1&limit=20
 exports.getCommunityPosts = onRequest(async (req, res) => {
@@ -15,21 +37,23 @@ exports.getCommunityPosts = onRequest(async (req, res) => {
 
     const { data, error, count } = await supabase
       .from("posts")
-      .select("id, title, content, created_at, user_id, profiles(name, age)", { count: "exact" })
+      .select("id, title, content, created_at, user_id", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
+    const withProfiles = await attachProfiles(data || []);
+
     return res.status(200).json({
-      posts: data,
+      posts: withProfiles,
       total: count,
       page,
-      totalPages: Math.ceil(count / limit),
+      totalPages: Math.ceil((count || 0) / limit),
     });
   } catch (err) {
     logger.error("getCommunityPosts error:", err);
-    return res.status(500).json({ error: "게시글 목록 조회 실패" });
+    return res.status(500).json({ error: "게시글 목록 조회 실패", detail: err?.message });
   }
 });
 
@@ -45,7 +69,7 @@ exports.getPost = onRequest(async (req, res) => {
 
     const { data, error } = await supabase
       .from("posts")
-      .select("id, title, content, created_at, user_id, profiles(name, age)")
+      .select("id, title, content, created_at, user_id")
       .eq("id", id)
       .single();
 
@@ -53,10 +77,11 @@ exports.getPost = onRequest(async (req, res) => {
       return res.status(404).json({ error: "게시글을 찾을 수 없습니다" });
     }
 
-    return res.status(200).json({ post: data });
+    const [withProfile] = await attachProfiles([data]);
+    return res.status(200).json({ post: withProfile });
   } catch (err) {
     logger.error("getPost error:", err);
-    return res.status(500).json({ error: "게시글 조회 실패" });
+    return res.status(500).json({ error: "게시글 조회 실패", detail: err?.message });
   }
 });
 
@@ -186,16 +211,17 @@ exports.getComments = onRequest(async (req, res) => {
 
     const { data, error } = await supabase
       .from("comments")
-      .select("id, content, created_at, user_id, profiles(name, age)")
+      .select("id, content, created_at, user_id")
       .eq("post_id", post_id)
       .order("created_at", { ascending: true });
 
     if (error) throw error;
 
-    return res.status(200).json({ comments: data });
+    const withProfiles = await attachProfiles(data || []);
+    return res.status(200).json({ comments: withProfiles });
   } catch (err) {
     logger.error("getComments error:", err);
-    return res.status(500).json({ error: "댓글 조회 실패" });
+    return res.status(500).json({ error: "댓글 조회 실패", detail: err?.message });
   }
 });
 
