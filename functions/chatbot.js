@@ -38,12 +38,16 @@ exports.chatBot = onRequest(async (req, res) => {
     // 사용자 프로필 조회 (선택적 - user_id 있을 때만)
     let userProfile = null;
     if (user_id) {
-      const { data } = await supabase
+      const { data, error: profileError } = await supabase
         .from("profiles")
         .select("name, age, occupation, interests, main_bank")
         .eq("id", user_id)
         .single();
-      userProfile = data;
+      if (!profileError && data) {
+        userProfile = data;
+      } else if (profileError) {
+        logger.warn("chatBot: 프로필 조회 실패", profileError.message);
+      }
     }
 
     let deposits, savings;

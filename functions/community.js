@@ -15,7 +15,7 @@ exports.getCommunityPosts = onRequest(async (req, res) => {
 
     const { data, error, count } = await supabase
       .from("posts")
-      .select("id, title, content, created_at, user_id, profiles(age_group)", { count: "exact" })
+      .select("id, title, content, created_at, user_id, profiles(name, age)", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -74,7 +74,7 @@ exports.getComments = onRequest(async (req, res) => {
 
     const { data, error } = await supabase
       .from("comments")
-      .select("id, content, created_at, user_id, profiles(age_group)")
+      .select("id, content, created_at, user_id, profiles(name, age)")
       .eq("post_id", post_id)
       .order("created_at", { ascending: true });
 
