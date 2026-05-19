@@ -10,9 +10,14 @@ const { getPersonalityQuestions,
         personalityTest }         = require("./personality");
 const { getNews }                 = require("./news");
 const { getCommunityPosts,
+        getPost,
         createPost,
+        updatePost,
+        deletePost,
         getComments,
-        createComment }           = require("./community");
+        createComment,
+        updateComment,
+        deleteComment }           = require("./community");
 const { recordProductView,
         getPopularProducts }      = require("./popular");
 const { saveProfile }             = require("./profile");
@@ -26,9 +31,14 @@ module.exports = {
   personalityTest,
   getNews,
   getCommunityPosts,
+  getPost,
   createPost,
+  updatePost,
+  deletePost,
   getComments,
   createComment,
+  updateComment,
+  deleteComment,
   recordProductView,
   getPopularProducts,
   saveProfile,

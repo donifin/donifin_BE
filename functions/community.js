@@ -33,6 +33,33 @@ exports.getCommunityPosts = onRequest(async (req, res) => {
   }
 });
 
+// 게시글 단건 조회
+// GET /getPost?id=xxx
+exports.getPost = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+
+  try {
+    const { id } = req.query;
+    if (!id) return res.status(400).json({ error: "id 필수" });
+
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, title, content, created_at, user_id, profiles(name, age)")
+      .eq("id", id)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: "게시글을 찾을 수 없습니다" });
+    }
+
+    return res.status(200).json({ post: data });
+  } catch (err) {
+    logger.error("getPost error:", err);
+    return res.status(500).json({ error: "게시글 조회 실패" });
+  }
+});
+
 // 게시글 작성
 // POST /createPost
 // body: { user_id, title, content }
@@ -59,6 +86,91 @@ exports.createPost = onRequest(async (req, res) => {
   } catch (err) {
     logger.error("createPost error:", err);
     return res.status(500).json({ error: "게시글 작성 실패" });
+  }
+});
+
+// 게시글 수정
+// POST /updatePost
+// body: { id, user_id, title, content }
+exports.updatePost = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
+
+  try {
+    const { id, user_id, title, content } = req.body;
+    if (!id || !user_id || !title || !content) {
+      return res.status(400).json({ error: "id, user_id, title, content 필수" });
+    }
+
+    // 소유권 확인
+    const { data: existing, error: findError } = await supabase
+      .from("posts")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+
+    if (findError || !existing) {
+      return res.status(404).json({ error: "게시글을 찾을 수 없습니다" });
+    }
+    if (existing.user_id !== user_id) {
+      return res.status(403).json({ error: "수정 권한이 없습니다" });
+    }
+
+    const { data, error } = await supabase
+      .from("posts")
+      .update({ title, content })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ post: data });
+  } catch (err) {
+    logger.error("updatePost error:", err);
+    return res.status(500).json({ error: "게시글 수정 실패" });
+  }
+});
+
+// 게시글 삭제
+// POST /deletePost
+// body: { id, user_id }
+exports.deletePost = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
+
+  try {
+    const { id, user_id } = req.body;
+    if (!id || !user_id) {
+      return res.status(400).json({ error: "id, user_id 필수" });
+    }
+
+    // 소유권 확인
+    const { data: existing, error: findError } = await supabase
+      .from("posts")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+
+    if (findError || !existing) {
+      return res.status(404).json({ error: "게시글을 찾을 수 없습니다" });
+    }
+    if (existing.user_id !== user_id) {
+      return res.status(403).json({ error: "삭제 권한이 없습니다" });
+    }
+
+    // 댓글 먼저 삭제 (FK 제약 회피)
+    await supabase.from("comments").delete().eq("post_id", id);
+
+    const { error } = await supabase.from("posts").delete().eq("id", id);
+    if (error) throw error;
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    logger.error("deletePost error:", err);
+    return res.status(500).json({ error: "게시글 삭제 실패" });
   }
 });
 
@@ -113,5 +225,85 @@ exports.createComment = onRequest(async (req, res) => {
   } catch (err) {
     logger.error("createComment error:", err);
     return res.status(500).json({ error: "댓글 작성 실패" });
+  }
+});
+
+// 댓글 수정
+// POST /updateComment
+// body: { id, user_id, content }
+exports.updateComment = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
+
+  try {
+    const { id, user_id, content } = req.body;
+    if (!id || !user_id || !content) {
+      return res.status(400).json({ error: "id, user_id, content 필수" });
+    }
+
+    const { data: existing, error: findError } = await supabase
+      .from("comments")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+
+    if (findError || !existing) {
+      return res.status(404).json({ error: "댓글을 찾을 수 없습니다" });
+    }
+    if (existing.user_id !== user_id) {
+      return res.status(403).json({ error: "수정 권한이 없습니다" });
+    }
+
+    const { data, error } = await supabase
+      .from("comments")
+      .update({ content })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ comment: data });
+  } catch (err) {
+    logger.error("updateComment error:", err);
+    return res.status(500).json({ error: "댓글 수정 실패" });
+  }
+});
+
+// 댓글 삭제
+// POST /deleteComment
+// body: { id, user_id }
+exports.deleteComment = onRequest(async (req, res) => {
+  setCorsHeaders(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
+
+  try {
+    const { id, user_id } = req.body;
+    if (!id || !user_id) {
+      return res.status(400).json({ error: "id, user_id 필수" });
+    }
+
+    const { data: existing, error: findError } = await supabase
+      .from("comments")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+
+    if (findError || !existing) {
+      return res.status(404).json({ error: "댓글을 찾을 수 없습니다" });
+    }
+    if (existing.user_id !== user_id) {
+      return res.status(403).json({ error: "삭제 권한이 없습니다" });
+    }
+
+    const { error } = await supabase.from("comments").delete().eq("id", id);
+    if (error) throw error;
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    logger.error("deleteComment error:", err);
+    return res.status(500).json({ error: "댓글 삭제 실패" });
   }
 });

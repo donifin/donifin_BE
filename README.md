@@ -244,11 +244,34 @@ GET /getNews?category=상승TOP5            ← 등락률 TOP 5
 | `page` | 선택 | 페이지 번호 (기본값: 1) |
 | `limit` | 선택 | 페이지당 개수 (기본값: 20) |
 
+응답: `{ posts: [...], total, page, totalPages }`
+
+#### `GET /getPost?id=xxx` — 게시글 단건 조회
+
+```json
+// 응답
+{ "post": { "id": "...", "title": "...", "content": "...", "user_id": "...", "profiles": { "name": "...", "age": 25 } } }
+```
+
 #### `POST /createPost` — 게시글 작성
 
 ```json
 { "user_id": "유저ID", "title": "제목", "content": "내용" }
 ```
+
+#### `POST /updatePost` — 게시글 수정
+
+```json
+{ "id": "게시글ID", "user_id": "유저ID", "title": "새 제목", "content": "새 내용" }
+```
+> 본인 글만 수정 가능. 다른 사용자가 시도하면 403.
+
+#### `POST /deletePost` — 게시글 삭제
+
+```json
+{ "id": "게시글ID", "user_id": "유저ID" }
+```
+> 본인 글만 삭제 가능. 해당 게시글의 댓글도 함께 삭제됨.
 
 #### `GET /getComments?post_id=xxx` — 댓글 목록
 
@@ -256,6 +279,18 @@ GET /getNews?category=상승TOP5            ← 등락률 TOP 5
 
 ```json
 { "post_id": "게시글ID", "user_id": "유저ID", "content": "댓글 내용" }
+```
+
+#### `POST /updateComment` — 댓글 수정
+
+```json
+{ "id": "댓글ID", "user_id": "유저ID", "content": "새 댓글 내용" }
+```
+
+#### `POST /deleteComment` — 댓글 삭제
+
+```json
+{ "id": "댓글ID", "user_id": "유저ID" }
 ```
 
 ---
