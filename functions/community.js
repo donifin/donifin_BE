@@ -1,6 +1,78 @@
 const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const { supabase, setCorsHeaders } = require("./config");
+const { createNotification } = require("./notifications");
+
+// 게시글 row 배열에 like_count, my_liked, bookmarked 추가.
+async function attachLikeStatus(rows, currentUserId) {
+  const ids = rows.map((r) => r.id).filter(Boolean);
+  if (ids.length === 0) return rows;
+
+  // 좋아요 카운트 (각 post_id별 그룹)
+  const counts = {};
+  const myLikes = new Set();
+  const myBookmarks = new Set();
+
+  try {
+    const { data: likes } = await supabase
+      .from("post_likes")
+      .select("post_id, user_id")
+      .in("post_id", ids);
+    for (const l of likes || []) {
+      counts[l.post_id] = (counts[l.post_id] || 0) + 1;
+      if (currentUserId && l.user_id === currentUserId) myLikes.add(l.post_id);
+    }
+  } catch (e) {
+    logger.warn("post_likes 조회 실패:", e?.message || e);
+  }
+
+  if (currentUserId) {
+    try {
+      const { data: bms } = await supabase
+        .from("bookmarks")
+        .select("post_id")
+        .eq("user_id", currentUserId)
+        .in("post_id", ids);
+      for (const b of bms || []) myBookmarks.add(b.post_id);
+    } catch (e) {
+      logger.warn("bookmarks 조회 실패:", e?.message || e);
+    }
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    like_count: counts[r.id] || 0,
+    liked_by_me: myLikes.has(r.id),
+    bookmarked: myBookmarks.has(r.id),
+  }));
+}
+
+// 댓글 row 배열에 like_count, liked_by_me 추가.
+async function attachCommentLikeStatus(rows, currentUserId) {
+  const ids = rows.map((r) => r.id).filter(Boolean);
+  if (ids.length === 0) return rows;
+  const counts = {};
+  const myLikes = new Set();
+  try {
+    const { data: likes } = await supabase
+      .from("comment_likes")
+      .select("comment_id, user_id")
+      .in("comment_id", ids);
+    for (const l of likes || []) {
+      counts[l.comment_id] = (counts[l.comment_id] || 0) + 1;
+      if (currentUserId && l.user_id === currentUserId) {
+        myLikes.add(l.comment_id);
+      }
+    }
+  } catch (e) {
+    logger.warn("comment_likes 조회 실패:", e?.message || e);
+  }
+  return rows.map((r) => ({
+    ...r,
+    like_count: counts[r.id] || 0,
+    liked_by_me: myLikes.has(r.id),
+  }));
+}
 
 // 작성자 정보 첨부 헬퍼 — FK 없이도 동작.
 async function attachProfiles(rows) {
@@ -24,6 +96,29 @@ async function attachProfiles(rows) {
   return rows.map((r) => ({ ...r, profiles: map[r.user_id] || null }));
 }
 
+// 각 게시글의 댓글 수 계산 (comments 테이블 count).
+// 게시글 N개 × N쿼리 방지: post_id IN (...) 한 번에 가져와 카운트.
+async function attachCommentCounts(rows) {
+  const postIds = rows.map((r) => r.id).filter(Boolean);
+  if (postIds.length === 0) {
+    return rows.map((r) => ({ ...r, comment_count: 0 }));
+  }
+  const { data: comments, error } = await supabase
+    .from("comments")
+    .select("post_id")
+    .in("post_id", postIds);
+
+  if (error) {
+    logger.warn("attachCommentCounts 실패:", error.message);
+    return rows.map((r) => ({ ...r, comment_count: 0 }));
+  }
+  const counts = {};
+  for (const c of comments || []) {
+    counts[c.post_id] = (counts[c.post_id] || 0) + 1;
+  }
+  return rows.map((r) => ({ ...r, comment_count: counts[r.id] || 0 }));
+}
+
 // 게시글 목록 조회
 // GET /getCommunityPosts?page=1&limit=20
 exports.getCommunityPosts = onRequest(async (req, res) => {
@@ -37,16 +132,22 @@ exports.getCommunityPosts = onRequest(async (req, res) => {
 
     const { data, error, count } = await supabase
       .from("posts")
-      .select("id, title, content, created_at, user_id", { count: "exact" })
+      .select(
+        "id, title, content, created_at, user_id, category, anonymous, view_count",
+        { count: "exact" },
+      )
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
+    const currentUserId = req.query.user_id || null;
     const withProfiles = await attachProfiles(data || []);
+    const withCounts = await attachCommentCounts(withProfiles);
+    const withLikes = await attachLikeStatus(withCounts, currentUserId);
 
     return res.status(200).json({
-      posts: withProfiles,
+      posts: withLikes,
       total: count,
       page,
       totalPages: Math.ceil((count || 0) / limit),
@@ -69,7 +170,9 @@ exports.getPost = onRequest(async (req, res) => {
 
     const { data, error } = await supabase
       .from("posts")
-      .select("id, title, content, created_at, user_id")
+      .select(
+        "id, title, content, created_at, user_id, category, anonymous, view_count",
+      )
       .eq("id", id)
       .single();
 
@@ -77,8 +180,22 @@ exports.getPost = onRequest(async (req, res) => {
       return res.status(404).json({ error: "게시글을 찾을 수 없습니다" });
     }
 
+    // 조회수 +1 (best-effort, 실패해도 응답엔 영향 없음).
+    const newViewCount = (data.view_count || 0) + 1;
+    supabase
+      .from("posts")
+      .update({ view_count: newViewCount })
+      .eq("id", id)
+      .then(({ error: e }) => {
+        if (e) logger.warn("view_count 증가 실패:", e.message);
+      });
+    data.view_count = newViewCount;
+
+    const currentUserId = req.query.user_id || null;
     const [withProfile] = await attachProfiles([data]);
-    return res.status(200).json({ post: withProfile });
+    const [withCount] = await attachCommentCounts([withProfile]);
+    const [withLikes] = await attachLikeStatus([withCount], currentUserId);
+    return res.status(200).json({ post: withLikes });
   } catch (err) {
     logger.error("getPost error:", err);
     return res.status(500).json({ error: "게시글 조회 실패", detail: err?.message });
@@ -94,14 +211,20 @@ exports.createPost = onRequest(async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
 
   try {
-    const { user_id, title, content } = req.body;
+    const { user_id, title, content, category, anonymous } = req.body;
     if (!user_id || !title || !content) {
       return res.status(400).json({ error: "user_id, title, content 필수" });
     }
 
     const { data, error } = await supabase
       .from("posts")
-      .insert({ user_id, title, content })
+      .insert({
+        user_id,
+        title,
+        content,
+        category: category || null,
+        anonymous: anonymous === true,
+      })
       .select()
       .single();
 
@@ -123,7 +246,7 @@ exports.updatePost = onRequest(async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "POST만 허용" });
 
   try {
-    const { id, user_id, title, content } = req.body;
+    const { id, user_id, title, content, category, anonymous } = req.body;
     if (!id || !user_id || !title || !content) {
       return res.status(400).json({ error: "id, user_id, title, content 필수" });
     }
@@ -142,9 +265,13 @@ exports.updatePost = onRequest(async (req, res) => {
       return res.status(403).json({ error: "수정 권한이 없습니다" });
     }
 
+    const updates = { title, content };
+    if (category !== undefined) updates.category = category || null;
+    if (anonymous !== undefined) updates.anonymous = anonymous === true;
+
     const { data, error } = await supabase
       .from("posts")
-      .update({ title, content })
+      .update(updates)
       .eq("id", id)
       .select()
       .single();
@@ -209,6 +336,7 @@ exports.getComments = onRequest(async (req, res) => {
     const { post_id } = req.query;
     if (!post_id) return res.status(400).json({ error: "post_id 필수" });
 
+    const currentUserId = req.query.user_id || null;
     const { data, error } = await supabase
       .from("comments")
       .select("id, content, created_at, user_id")
@@ -218,7 +346,8 @@ exports.getComments = onRequest(async (req, res) => {
     if (error) throw error;
 
     const withProfiles = await attachProfiles(data || []);
-    return res.status(200).json({ comments: withProfiles });
+    const withLikes = await attachCommentLikeStatus(withProfiles, currentUserId);
+    return res.status(200).json({ comments: withLikes });
   } catch (err) {
     logger.error("getComments error:", err);
     return res.status(500).json({ error: "댓글 조회 실패", detail: err?.message });
@@ -246,6 +375,28 @@ exports.createComment = onRequest(async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    // 게시글 작성자에게 알림 생성 (자기 글에 자기가 댓글이면 skip).
+    try {
+      const { data: post } = await supabase
+        .from("posts")
+        .select("user_id, title")
+        .eq("id", post_id)
+        .single();
+      if (post) {
+        const preview = (content || "").slice(0, 30);
+        await createNotification({
+          userId: post.user_id,
+          selfUserId: user_id,
+          type: "comment",
+          title: "내 게시글에 댓글이 달렸어요",
+          body: preview,
+          targetId: `post-${post_id}`,
+        });
+      }
+    } catch (e) {
+      logger.warn("comment 알림 생성 실패:", e?.message || e);
+    }
 
     return res.status(201).json({ comment: data });
   } catch (err) {

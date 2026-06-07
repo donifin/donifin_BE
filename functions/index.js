@@ -18,10 +18,14 @@ const { getCommunityPosts,
         createComment,
         updateComment,
         deleteComment }           = require("./community");
-const { recordProductView,
-        getPopularProducts }      = require("./popular");
 const { saveProfile }             = require("./profile");
 const { getQuiz }                 = require("./quiz");
+const { getNotifications,
+        markAllNotificationsRead } = require("./notifications");
+const { togglePostLike,
+        toggleCommentLike,
+        togglePostBookmark }      = require("./likes");
+const { kakaoLogin }              = require("./kakaoAuth");
 
 // ── 내보내기 ─────────────────────────────────────────────────
 module.exports = {
@@ -40,8 +44,12 @@ module.exports = {
   createComment,
   updateComment,
   deleteComment,
-  recordProductView,
-  getPopularProducts,
   saveProfile,
   getQuiz,
+  getNotifications,
+  markAllNotificationsRead,
+  togglePostLike,
+  toggleCommentLike,
+  togglePostBookmark,
+  kakaoLogin,
 };

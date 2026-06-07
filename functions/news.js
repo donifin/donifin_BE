@@ -8,6 +8,7 @@ const {
   EXIM_API_KEY,
   setCorsHeaders,
 } = require("./config");
+const { stockLogoUrl } = require("./logos");
 
 // 한국은행 ECOS API 공통 호출 함수
 async function fetchEcos(statCode, itemCode, days = 30) {
@@ -31,35 +32,45 @@ const MAJOR_INDICES = [
   { name: "나스닥", ticker: "^IXIC", region: "해외" },
 ];
 
-// 국내 인기 종목
+// 국내 인기 종목 (코스피 시총 상위 10)
 const DOMESTIC_STOCKS = [
   { name: "삼성전자", ticker: "005930.KS" },
   { name: "SK하이닉스", ticker: "000660.KS" },
-  { name: "카카오", ticker: "035720.KS" },
-  { name: "NAVER", ticker: "035420.KS" },
-  { name: "현대차", ticker: "005380.KS" },
-];
-
-// 해외 인기 종목
-const OVERSEAS_STOCKS = [
-  { name: "애플", ticker: "AAPL" },
-  { name: "테슬라", ticker: "TSLA" },
-  { name: "엔비디아", ticker: "NVDA" },
-  { name: "마이크로소프트", ticker: "MSFT" },
-  { name: "구글", ticker: "GOOGL" },
-];
-
-// 상승 TOP 5 계산용 종목 풀 (국내+해외 다양한 종목 30개)
-const TOP_GAINERS_POOL = [
-  // 국내 (15개)
-  { name: "삼성전자", ticker: "005930.KS" },
-  { name: "SK하이닉스", ticker: "000660.KS" },
-  { name: "카카오", ticker: "035720.KS" },
-  { name: "NAVER", ticker: "035420.KS" },
-  { name: "현대차", ticker: "005380.KS" },
   { name: "LG에너지솔루션", ticker: "373220.KS" },
   { name: "삼성바이오로직스", ticker: "207940.KS" },
+  { name: "현대차", ticker: "005380.KS" },
   { name: "기아", ticker: "000270.KS" },
+  { name: "NAVER", ticker: "035420.KS" },
+  { name: "카카오", ticker: "035720.KS" },
+  { name: "POSCO홀딩스", ticker: "005490.KS" },
+  { name: "셀트리온", ticker: "068270.KS" },
+];
+
+// 해외 인기 종목 (미국 빅테크 + 시총 상위 10)
+const OVERSEAS_STOCKS = [
+  { name: "애플", ticker: "AAPL" },
+  { name: "마이크로소프트", ticker: "MSFT" },
+  { name: "엔비디아", ticker: "NVDA" },
+  { name: "구글", ticker: "GOOGL" },
+  { name: "아마존", ticker: "AMZN" },
+  { name: "메타", ticker: "META" },
+  { name: "테슬라", ticker: "TSLA" },
+  { name: "넷플릭스", ticker: "NFLX" },
+  { name: "AMD", ticker: "AMD" },
+  { name: "인텔", ticker: "INTC" },
+];
+
+// 상승 TOP 5 계산용 종목 풀 (국내 25 + 해외 25 = 50개)
+const TOP_GAINERS_POOL = [
+  // ── 국내 (25개, 코스피 시총 상위 위주) ──
+  { name: "삼성전자", ticker: "005930.KS" },
+  { name: "SK하이닉스", ticker: "000660.KS" },
+  { name: "LG에너지솔루션", ticker: "373220.KS" },
+  { name: "삼성바이오로직스", ticker: "207940.KS" },
+  { name: "현대차", ticker: "005380.KS" },
+  { name: "기아", ticker: "000270.KS" },
+  { name: "NAVER", ticker: "035420.KS" },
+  { name: "카카오", ticker: "035720.KS" },
   { name: "POSCO홀딩스", ticker: "005490.KS" },
   { name: "LG화학", ticker: "051910.KS" },
   { name: "셀트리온", ticker: "068270.KS" },
@@ -67,14 +78,24 @@ const TOP_GAINERS_POOL = [
   { name: "신한지주", ticker: "055550.KS" },
   { name: "삼성SDI", ticker: "006400.KS" },
   { name: "현대모비스", ticker: "012330.KS" },
-  // 해외 (15개)
+  { name: "하나금융지주", ticker: "086790.KS" },
+  { name: "우리금융지주", ticker: "316140.KS" },
+  { name: "메리츠금융지주", ticker: "138040.KS" },
+  { name: "삼성생명", ticker: "032830.KS" },
+  { name: "한화에어로스페이스", ticker: "012450.KS" },
+  { name: "두산에너빌리티", ticker: "034020.KS" },
+  { name: "한국전력", ticker: "015760.KS" },
+  { name: "삼성물산", ticker: "028260.KS" },
+  { name: "SK이노베이션", ticker: "096770.KS" },
+  { name: "LG전자", ticker: "066570.KS" },
+  // ── 해외 (25개, S&P500/나스닥 시총 상위) ──
   { name: "애플", ticker: "AAPL" },
-  { name: "테슬라", ticker: "TSLA" },
-  { name: "엔비디아", ticker: "NVDA" },
   { name: "마이크로소프트", ticker: "MSFT" },
+  { name: "엔비디아", ticker: "NVDA" },
   { name: "구글", ticker: "GOOGL" },
   { name: "아마존", ticker: "AMZN" },
   { name: "메타", ticker: "META" },
+  { name: "테슬라", ticker: "TSLA" },
   { name: "넷플릭스", ticker: "NFLX" },
   { name: "AMD", ticker: "AMD" },
   { name: "인텔", ticker: "INTC" },
@@ -83,6 +104,16 @@ const TOP_GAINERS_POOL = [
   { name: "맥도날드", ticker: "MCD" },
   { name: "JP모건", ticker: "JPM" },
   { name: "버크셔해서웨이", ticker: "BRK-B" },
+  { name: "비자", ticker: "V" },
+  { name: "마스터카드", ticker: "MA" },
+  { name: "월마트", ticker: "WMT" },
+  { name: "P&G", ticker: "PG" },
+  { name: "유나이티드헬스", ticker: "UNH" },
+  { name: "존슨앤존슨", ticker: "JNJ" },
+  { name: "엑손모빌", ticker: "XOM" },
+  { name: "셰브론", ticker: "CVX" },
+  { name: "화이자", ticker: "PFE" },
+  { name: "보잉", ticker: "BA" },
 ];
 
 // ── 환율 조회 (한국수출입은행 API) ────────────────────────
@@ -134,13 +165,18 @@ function _exchangeMock() {
   ];
 }
 
+// KST(UTC+9) 기준 YYYYMMDD 문자열.
+// Firebase Functions는 기본 UTC라 그냥 toISOString하면 한국 새벽엔 전날 날짜가 나옴.
 function _dateYYYYMMDD(d) {
-  return d.toISOString().slice(0, 10).replace(/-/g, "");
+  const kstMs = d.getTime() + 9 * 60 * 60 * 1000;
+  const kst = new Date(kstMs);
+  return kst.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
-// 환율 캐시 (1시간 TTL) — 한국수출입은행 API는 영업일 오전 11시 1회 갱신.
+// 환율 캐시 (5분 TTL) — 한국수출입은행 API는 영업일 1일 여러 번 갱신.
+// 캐시 시간 짧게 두어 stale 데이터 위험 최소화.
 const _exchangeCache = { data: null, expiresAt: 0 };
-const EXCHANGE_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
+const EXCHANGE_CACHE_TTL_MS = 5 * 60 * 1000; // 5분
 
 async function fetchExchangeRate() {
   // 캐시 hit
@@ -205,6 +241,7 @@ async function fetchYahooStock({ name, ticker, region }) {
     change: "",
     change_raw: 0,
     chart: [],
+    logo_url: stockLogoUrl(ticker),
   };
 
   let res;
@@ -234,16 +271,7 @@ async function fetchYahooStock({ name, ticker, region }) {
 
   if (curIdx < 0) {
     // 데이터 전무.
-    return {
-      name,
-      ticker,
-      region: region || null,
-      price: "-",
-      price_raw: null,
-      change: "",
-      change_raw: 0,
-      chart: [],
-    };
+    return emptyResponse;
   }
 
   const currentPrice = closes[curIdx];
@@ -271,6 +299,7 @@ async function fetchYahooStock({ name, ticker, region }) {
               close: Math.round(closes[i]),
             })
       .filter((p) => p !== null),
+    logo_url: stockLogoUrl(ticker),
   };
 }
 
@@ -310,6 +339,22 @@ async function fetchTopGainers() {
 }
 
 // ── 경제뉴스 조회 (네이버 뉴스 API) ───────────────────────
+// 금융/경제 관련성 필터링 키워드 — 제목·본문에 하나라도 들어가면 통과.
+const FINANCE_KEYWORDS = [
+  "금리", "기준금리", "주식", "주가", "증시", "코스피", "코스닥", "나스닥",
+  "환율", "원·달러", "원달러", "달러", "엔화", "위안화", "유로",
+  "금융", "은행", "예금", "적금", "대출", "신용",
+  "투자", "펀드", "ETF", "채권", "부동산",
+  "경기", "물가", "인플레", "소비자물가", "GDP", "수출", "수입",
+  "한은", "한국은행", "연준", "Fed", "금융위", "금감원",
+  "원화", "엔저", "엔고", "달러강세", "달러약세",
+];
+
+function _isFinanceRelated(item) {
+  const text = `${item.title} ${item.description}`;
+  return FINANCE_KEYWORDS.some((k) => text.includes(k));
+}
+
 async function fetchEconomyNews(keyword = "경제") {
   if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
     return [
@@ -319,20 +364,29 @@ async function fetchEconomyNews(keyword = "경제") {
     ];
   }
 
+  // 더 많이 가져와서 필터링 후 상위 10개만 반환 (display 최대 100).
   const res = await axios.get("https://openapi.naver.com/v1/search/news.json", {
-    params: { query: keyword, display: 10, sort: "date" },
+    params: { query: keyword, display: 50, sort: "date" },
     headers: {
       "X-Naver-Client-Id": NAVER_CLIENT_ID,
       "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
     },
   });
 
-  return res.data.items.map((item) => ({
+  const cleaned = res.data.items.map((item) => ({
     title: item.title.replace(/<[^>]+>/g, ""),
     link: item.link,
     pubDate: item.pubDate,
     description: item.description.replace(/<[^>]+>/g, ""),
   }));
+
+  // 사용자가 명시적 키워드를 줬으면 그대로 (해당 키워드 자체가 충분히 좁음).
+  // 기본 "경제" 검색이면 금융 관련성 필터링 적용.
+  const filtered = keyword === "경제"
+    ? cleaned.filter(_isFinanceRelated)
+    : cleaned;
+
+  return filtered.slice(0, 10);
 }
 
 // ── 금리 조회 ─────────────────────────────────────────────

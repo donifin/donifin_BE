@@ -7,6 +7,7 @@ const {
   setCorsHeaders,
   fetchFssProducts,
 } = require("./config");
+const { bankLogoUrl } = require("./logos");
 
 // 금융 상품 검색 + 필터링 + 금리 정렬
 // GET /getProducts?type=deposit&term=12&sort=high
@@ -46,7 +47,12 @@ exports.getProducts = onRequest(async (req, res) => {
         if (matchedOptions.length === 0) return null;
 
         const maxRate = Math.max(...matchedOptions.map((o) => o.intr_rate2 ?? o.intr_rate));
-        return { ...product, options: matchedOptions, max_rate: maxRate };
+        return {
+          ...product,
+          options: matchedOptions,
+          max_rate: maxRate,
+          logo_url: bankLogoUrl(product.kor_co_nm),
+        };
       })
       .filter(Boolean);
 

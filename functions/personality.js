@@ -9,6 +9,7 @@ const {
   setCorsHeaders,
   fetchFssProducts,
 } = require("./config");
+const { bankLogoUrl } = require("./logos");
 
 // join_member 텍스트에서 연령 제한 파싱.
 // "만 17세 미만의 ..."   → { type: "max", age: 17, inclusive: false }
@@ -108,7 +109,12 @@ function filterProductsByPersonality(personalityType, deposits, savings, age) {
       if (matchedOptions.length === 0) return null;
 
       const maxRate = Math.max(...matchedOptions.map((o) => o.intr_rate2 ?? o.intr_rate));
-      return { ...p, options: matchedOptions, max_rate: maxRate };
+      return {
+        ...p,
+        options: matchedOptions,
+        max_rate: maxRate,
+        logo_url: bankLogoUrl(p.kor_co_nm),
+      };
     })
     .filter(Boolean)
     .sort((a, b) => b.max_rate - a.max_rate)
@@ -239,7 +245,6 @@ exports.personalityTest = onRequest(async (req, res) => {
       type,
       description,
       products: recommendedProducts,
-      is_mock: USE_MOCK,
     });
   } catch (err) {
     logger.error("personalityTest error:", err);
