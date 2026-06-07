@@ -26,6 +26,7 @@ const { togglePostLike,
         toggleCommentLike,
         togglePostBookmark }      = require("./likes");
 const { kakaoLogin }              = require("./kakaoAuth");
+const { deleteAccount }           = require("./deleteAccount");
 
 // ── 내보내기 ─────────────────────────────────────────────────
 module.exports = {
@@ -52,4 +53,5 @@ module.exports = {
   toggleCommentLike,
   togglePostBookmark,
   kakaoLogin,
+  deleteAccount,
 };
