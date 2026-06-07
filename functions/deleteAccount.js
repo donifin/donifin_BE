@@ -18,9 +18,10 @@ exports.deleteAccount = onRequest(async (req, res) => {
   const { user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: "user_id 필요" });
 
+  // service_role 키 사용 — RLS 우회하여 profiles 포함 전체 삭제 가능
   const supabase = createClient(
     process.env.SUPABASE_URL || "",
-    process.env.SUPABASE_KEY || ""
+    process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY || ""
   );
 
   try {
