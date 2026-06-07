@@ -1,14 +1,17 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { createClient } = require("@supabase/supabase-js");
+const admin = require("firebase-admin");
 const { setCorsHeaders } = require("./config");
 
+if (!admin.apps.length) admin.initializeApp();
+
 /**
- * DELETE /deleteAccount
+ * POST /deleteAccount
  * body: { user_id: string }
  *
- * Supabase에서 해당 유저의 모든 데이터를 삭제.
- * 삭제 순서: 자식 테이블 먼저 → profiles 마지막.
- *   notifications → comment_likes → post_likes → bookmarks → comments → posts → profiles
+ * 1. Supabase 전체 데이터 삭제 (service_role 키로 RLS 우회)
+ * 2. Firebase Auth 계정 삭제 (Admin SDK — 세션 상태 무관하게 강제 삭제)
+ * 삭제 순서: notifications → comment_likes → post_likes → bookmarks → comments → posts → profiles
  */
 exports.deleteAccount = onRequest(async (req, res) => {
   setCorsHeaders(res);
@@ -25,26 +28,15 @@ exports.deleteAccount = onRequest(async (req, res) => {
   );
 
   try {
-    // 1. notifications
+    // ── Supabase 데이터 삭제 ──────────────────────────────
     await supabase.from("notifications").delete().eq("user_id", user_id);
-
-    // 2. comment_likes
     await supabase.from("comment_likes").delete().eq("user_id", user_id);
-
-    // 3. post_likes
     await supabase.from("post_likes").delete().eq("user_id", user_id);
-
-    // 4. bookmarks
     await supabase.from("bookmarks").delete().eq("user_id", user_id);
-
-    // 5. comments (내가 쓴 댓글)
     await supabase.from("comments").delete().eq("user_id", user_id);
 
-    // 6. 내 게시글에 달린 댓글/좋아요/북마크 먼저 삭제 후 posts
     const { data: myPosts } = await supabase
-      .from("posts")
-      .select("id")
-      .eq("user_id", user_id);
+      .from("posts").select("id").eq("user_id", user_id);
 
     if (myPosts && myPosts.length > 0) {
       const postIds = myPosts.map((p) => p.id);
@@ -54,8 +46,17 @@ exports.deleteAccount = onRequest(async (req, res) => {
       await supabase.from("posts").delete().in("id", postIds);
     }
 
-    // 7. profiles (마지막)
     await supabase.from("profiles").delete().eq("id", user_id);
+
+    // ── Firebase Auth 계정 삭제 (Admin SDK) ──────────────
+    try {
+      await admin.auth().deleteUser(user_id);
+    } catch (authErr) {
+      // 이미 삭제된 계정이면 무시
+      if (authErr.code !== "auth/user-not-found") {
+        console.warn("[deleteAccount] Firebase Auth 삭제 실패:", authErr.message);
+      }
+    }
 
     return res.status(200).json({ success: true });
   } catch (e) {
