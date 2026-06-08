@@ -60,35 +60,20 @@ const OVERSEAS_STOCKS = [
   { name: "인텔", ticker: "INTC" },
 ];
 
-// 상승 TOP 5 계산용 종목 풀 (국내 25 + 해외 25 = 50개)
+// 상승 TOP 5 계산용 종목 풀 (국내 9 + 해외 9 = 18개)
+// 발표 녹화 로딩 단축을 위해 50개 → 18개로 축소 (유명 종목 위주).
 const TOP_GAINERS_POOL = [
-  // ── 국내 (25개, 코스피 시총 상위 위주) ──
+  // ── 국내 (코스피 시총 상위) ──
   { name: "삼성전자", ticker: "005930.KS" },
   { name: "SK하이닉스", ticker: "000660.KS" },
   { name: "LG에너지솔루션", ticker: "373220.KS" },
-  { name: "삼성바이오로직스", ticker: "207940.KS" },
   { name: "현대차", ticker: "005380.KS" },
   { name: "기아", ticker: "000270.KS" },
   { name: "NAVER", ticker: "035420.KS" },
   { name: "카카오", ticker: "035720.KS" },
-  { name: "POSCO홀딩스", ticker: "005490.KS" },
-  { name: "LG화학", ticker: "051910.KS" },
   { name: "셀트리온", ticker: "068270.KS" },
-  { name: "KB금융", ticker: "105560.KS" },
-  { name: "신한지주", ticker: "055550.KS" },
-  { name: "삼성SDI", ticker: "006400.KS" },
-  { name: "현대모비스", ticker: "012330.KS" },
-  { name: "하나금융지주", ticker: "086790.KS" },
-  { name: "우리금융지주", ticker: "316140.KS" },
-  { name: "메리츠금융지주", ticker: "138040.KS" },
-  { name: "삼성생명", ticker: "032830.KS" },
-  { name: "한화에어로스페이스", ticker: "012450.KS" },
-  { name: "두산에너빌리티", ticker: "034020.KS" },
-  { name: "한국전력", ticker: "015760.KS" },
-  { name: "삼성물산", ticker: "028260.KS" },
-  { name: "SK이노베이션", ticker: "096770.KS" },
   { name: "LG전자", ticker: "066570.KS" },
-  // ── 해외 (25개, S&P500/나스닥 시총 상위) ──
+  // ── 해외 (S&P500/나스닥 시총 상위) ──
   { name: "애플", ticker: "AAPL" },
   { name: "마이크로소프트", ticker: "MSFT" },
   { name: "엔비디아", ticker: "NVDA" },
@@ -98,22 +83,6 @@ const TOP_GAINERS_POOL = [
   { name: "테슬라", ticker: "TSLA" },
   { name: "넷플릭스", ticker: "NFLX" },
   { name: "AMD", ticker: "AMD" },
-  { name: "인텔", ticker: "INTC" },
-  { name: "디즈니", ticker: "DIS" },
-  { name: "코카콜라", ticker: "KO" },
-  { name: "맥도날드", ticker: "MCD" },
-  { name: "JP모건", ticker: "JPM" },
-  { name: "버크셔해서웨이", ticker: "BRK-B" },
-  { name: "비자", ticker: "V" },
-  { name: "마스터카드", ticker: "MA" },
-  { name: "월마트", ticker: "WMT" },
-  { name: "P&G", ticker: "PG" },
-  { name: "유나이티드헬스", ticker: "UNH" },
-  { name: "존슨앤존슨", ticker: "JNJ" },
-  { name: "엑손모빌", ticker: "XOM" },
-  { name: "셰브론", ticker: "CVX" },
-  { name: "화이자", ticker: "PFE" },
-  { name: "보잉", ticker: "BA" },
 ];
 
 // ── 환율 조회 (한국수출입은행 API) ────────────────────────
