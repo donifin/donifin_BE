@@ -1,7 +1,7 @@
 const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const {
-  openai,
+  getOpenAI,
   supabase,
   USE_MOCK,
   MOCK_DEPOSIT_PRODUCTS,
@@ -85,6 +85,7 @@ ${productContext}`;
       { role: "user", content: message },
     ];
 
+    const openai = getOpenAI();
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages,

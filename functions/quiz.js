@@ -1,6 +1,6 @@
 const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
-const { openai, setCorsHeaders } = require("./config");
+const { getOpenAI, setCorsHeaders } = require("./config");
 
 // 일일 OX 퀴즈 캐시 — 같은 날짜에는 재생성 없이 같은 문제 반환.
 // 메모리 캐시 (emulator 재시작 시 초기화). 운영에선 Firestore 등으로 옮기는 게 안전.
@@ -73,6 +73,7 @@ async function generateQuizWithAI() {
   { "question": "...", "answer": true, "explanation": "...", "hint": "...", "hint2": "..." }
 ]`;
 
+  const openai = getOpenAI();
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],

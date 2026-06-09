@@ -6,12 +6,37 @@ const { createClient } = require("@supabase/supabase-js");
 const { MOCK_DEPOSIT_PRODUCTS, MOCK_SAVING_PRODUCTS } = require("./mockData");
 
 // ── 클라이언트 초기화 ──────────────────────────────────────────
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openaiClient;
+let supabaseClient;
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || "",
-  process.env.SUPABASE_KEY || ""
-);
+function getOpenAI() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY environment variable is required");
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openaiClient;
+}
+
+function getSupabase() {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+    throw new Error("SUPABASE_URL and SUPABASE_KEY environment variables are required");
+  }
+  if (!supabaseClient) {
+    supabaseClient = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_KEY
+    );
+  }
+  return supabaseClient;
+}
+
+const supabase = new Proxy({}, {
+  get(_target, prop) {
+    return getSupabase()[prop];
+  },
+});
 
 // ── 환경변수 ──────────────────────────────────────────────────
 const FSS_API_KEY = process.env.FSS_API_KEY;
@@ -71,7 +96,8 @@ async function fetchFssProducts(type) {
 }
 
 module.exports = {
-  openai,
+  getOpenAI,
+  getSupabase,
   supabase,
   axios,
   FSS_API_KEY,

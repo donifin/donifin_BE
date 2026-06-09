@@ -324,6 +324,46 @@ function _isFinanceRelated(item) {
   return FINANCE_KEYWORDS.some((k) => text.includes(k));
 }
 
+const _thumbnailCache = new Map();
+
+function _decodeBasicHtml(s) {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#34;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+async function fetchNewsThumbnail(url) {
+  if (!url || url === "#") return null;
+  if (_thumbnailCache.has(url)) return _thumbnailCache.get(url);
+
+  try {
+    const res = await axios.get(url, {
+      timeout: 2500,
+      maxRedirects: 3,
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+      },
+    });
+    const html = typeof res.data === "string" ? res.data : "";
+    const match = html.match(
+      /<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["']/i
+    ) || html.match(
+      /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["']/i
+    );
+    const imageUrl = match ? _decodeBasicHtml(match[1].trim()) : null;
+    _thumbnailCache.set(url, imageUrl);
+    return imageUrl;
+  } catch (e) {
+    logger.warn("fetchNewsThumbnail failed:", e?.message || e);
+    _thumbnailCache.set(url, null);
+    return null;
+  }
+}
+
 async function fetchEconomyNews(keyword = "경제") {
   if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
     return [
@@ -342,11 +382,16 @@ async function fetchEconomyNews(keyword = "경제") {
     },
   });
 
-  const cleaned = res.data.items.map((item) => ({
+  const cleaned = await Promise.all(res.data.items.map(async (item) => {
+    const link = item.originallink || item.link;
+    const imageUrl = await fetchNewsThumbnail(link);
+    return {
     title: item.title.replace(/<[^>]+>/g, ""),
-    link: item.link,
+    link,
     pubDate: item.pubDate,
     description: item.description.replace(/<[^>]+>/g, ""),
+    image_url: imageUrl,
+  };
   }));
 
   // 사용자가 명시적 키워드를 줬으면 그대로 (해당 키워드 자체가 충분히 좁음).

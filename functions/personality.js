@@ -1,7 +1,7 @@
 const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const {
-  openai,
+  getOpenAI,
   supabase,
   USE_MOCK,
   MOCK_DEPOSIT_PRODUCTS,
@@ -202,6 +202,7 @@ exports.personalityTest = onRequest(async (req, res) => {
   "description": "사용자에게 보여줄 성향 설명 (2~3문장, 친근한 말투)"
 }`;
 
+    const openai = getOpenAI();
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
